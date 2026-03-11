@@ -137,6 +137,7 @@ jobs:
                   p12-password: ${{ secrets.APPSTORE_CERTIFICATE_P12_PASSWORD }}
 
             - name: Download Provisioning Profile
+              id: download_profile
               uses: apple-actions/download-provisioning-profiles@v4
               with:
                   bundle-id: com.timheuer.gridlet
@@ -144,6 +145,28 @@ jobs:
                   issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
                   api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
                   api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+            - name: Resolve Provisioning Profile
+              shell: bash
+              env:
+                  PROFILE_JSON: ${{ steps.download_profile.outputs.profiles }}
+              run: |
+                  python3 - <<'PY'
+                  import json
+                  import os
+                  import sys
+
+                  profiles = json.loads(os.environ["PROFILE_JSON"])
+                  if not profiles:
+                      print("No provisioning profiles were downloaded", file=sys.stderr)
+                      sys.exit(1)
+
+                  profile = profiles[0]
+                  github_env = os.environ["GITHUB_ENV"]
+                  with open(github_env, "a", encoding="utf-8") as env_file:
+                      env_file.write(f"PROFILE_NAME={profile['name']}\n")
+                      env_file.write(f"PROFILE_UUID={profile['udid']}\n")
+                  PY
 
             - name: Create Export Options
               shell: bash
@@ -157,8 +180,15 @@ jobs:
                     <string>export</string>
                     <key>method</key>
                     <string>app-store-connect</string>
+                    <key>provisioningProfiles</key>
+                    <dict>
+                      <key>com.timheuer.gridlet</key>
+                      <string>$PROFILE_NAME</string>
+                    </dict>
+                    <key>signingCertificate</key>
+                    <string>Apple Distribution</string>
                     <key>signingStyle</key>
-                    <string>automatic</string>
+                    <string>manual</string>
                     <key>teamID</key>
                     <string>$DEVELOPER_TEAM</string>
                   </dict>
@@ -169,14 +199,16 @@ jobs:
               shell: bash
               run: |
                   xcodebuild archive \
-                    -allowProvisioningUpdates \
                     -project "$PROJECT" \
                     -scheme "$APP_SCHEME" \
                     -configuration Release \
                     -destination 'generic/platform=iOS' \
                     -archivePath "$ARCHIVE_PATH" \
-                    CODE_SIGN_STYLE=Automatic \
+                    CODE_SIGN_STYLE=Manual \
+                    CODE_SIGN_IDENTITY="Apple Distribution" \
                     DEVELOPMENT_TEAM="$DEVELOPER_TEAM" \
+                    PROVISIONING_PROFILE="$PROFILE_UUID" \
+                    PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
                     MARKETING_VERSION="${{ steps.version.outputs.marketing_version }}" \
                     CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build_number }}"
 
@@ -185,7 +217,6 @@ jobs:
               run: |
                   mkdir -p "$EXPORT_PATH"
                   xcodebuild -exportArchive \
-                    -allowProvisioningUpdates \
                     -archivePath "$ARCHIVE_PATH" \
                     -exportPath "$EXPORT_PATH" \
                     -exportOptionsPlist "$EXPORT_OPTIONS_PLIST"
