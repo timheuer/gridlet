@@ -22,7 +22,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.timheuer.gridlet
-        INFOPLIST_KEY_CFBundleDisplayName: "Gridlet: Daily Crosswords"
+        INFOPLIST_KEY_CFBundleDisplayName: "Gridlet"
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.puzzle-games"
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
