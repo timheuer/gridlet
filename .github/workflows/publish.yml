@@ -1,0 +1,89 @@
+name: Publish to TestFlight
+
+on:
+    push:
+        tags:
+            - "v*"
+    workflow_dispatch:
+        inputs:
+            version:
+                description: Version number (for example 1.0.0)
+                required: false
+                type: string
+
+jobs:
+    calculate-version:
+        runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.version.outputs.marketing_version }}
+            build_number: ${{ steps.version.outputs.build_number }}
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Calculate Version
+              id: version
+              shell: bash
+              run: |
+                  if [[ "${{ github.event_name }}" == "push" ]]; then
+                    MARKETING_VERSION="${GITHUB_REF_NAME#v}"
+                  elif [[ -n "${{ inputs.version }}" ]]; then
+                    MARKETING_VERSION="${{ inputs.version }}"
+                  else
+                    MARKETING_VERSION="1.0.0"
+                  fi
+
+                  BUILD_NUMBER=$(git rev-list --count HEAD)
+
+                  echo "marketing_version=$MARKETING_VERSION" >> "$GITHUB_OUTPUT"
+                  echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+    build:
+        needs: calculate-version
+        uses: ./.github/workflows/build.yml
+        with:
+            version: ${{ needs.calculate-version.outputs.version }}
+            build_number: ${{ needs.calculate-version.outputs.build_number }}
+            export_ipa: true
+        secrets: inherit
+
+    upload:
+        needs: [calculate-version, build]
+        runs-on: macos-15
+        timeout-minutes: 30
+
+        steps:
+            - name: Download IPA Artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: ${{ needs.build.outputs.artifact_name }}
+                  path: artifacts
+
+            - name: Upload to TestFlight
+              shell: bash
+              env:
+                  APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+                  APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+                  APP_STORE_CONNECT_API_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+              run: |
+                  set -euo pipefail
+
+                  IPA_PATH=$(find artifacts -name '*.ipa' -print -quit)
+                  if [[ -z "$IPA_PATH" ]]; then
+                    echo "No IPA artifact found"
+                    exit 1
+                  fi
+
+                  mkdir -p ~/.appstoreconnect/private_keys
+                  printf '%s' "$APP_STORE_CONNECT_API_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+
+                  xcrun altool \
+                    --upload-app \
+                    --type ios \
+                    --file "$IPA_PATH" \
+                    --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+                    --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
+                    --verbose
