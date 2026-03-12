@@ -8,6 +8,10 @@ import GameplayKit
 /// A crossword grid generator optimized for small (5×5, 6×6) grids
 /// with seeded random number generation for deterministic puzzles.
 final class CrosswordLayoutGenerator {
+    /// Small mobile grids feel sparse below ~60% fill, but higher targets make it much harder
+    /// for the search to find a valid layout that can still place enough intersecting words.
+    static let targetDensityThreshold = 0.6
+    private static let maxLayoutAttempts = 60
 
     struct PlacedWord {
         let word: String
@@ -21,6 +25,8 @@ final class CrosswordLayoutGenerator {
     private var rng: GKMersenneTwisterRandomSource
 
     private var grid: [[String]]
+    /// Tracks which direction(s) occupy each cell to prevent same-direction overlaps.
+    private var directionGrid: [[Set<WordDirection>]]
     private var currentWords: [String] = []
     private(set) var result: [PlacedWord] = []
 
@@ -31,31 +37,30 @@ final class CrosswordLayoutGenerator {
         self.rows = rows
         self.rng = GKMersenneTwisterRandomSource(seed: seed)
         self.grid = Array(repeating: Array(repeating: "-", count: columns), count: rows)
+        self.directionGrid = Array(repeating: Array(repeating: Set<WordDirection>(), count: columns), count: rows)
     }
 
     /// Generate a crossword layout from the given words.
     /// Runs multiple full attempts with different word orderings and keeps the densest result.
-    func generate(words: [String]) {
+    func generate(words: [String], minimumWordCount: Int = 0) {
         let candidates = words
             .map { $0.uppercased() }
             .filter { $0.count <= max(columns, rows) && $0.count >= 2 }
 
         var bestPlaced: [PlacedWord] = []
         var bestGrid: [[String]] = []
-        let attempts = 30  // try many random orderings
+        var bestFilledCells = -1
+        let overlapScores = buildOverlapScores(for: candidates)
+        let attempts = Self.maxLayoutAttempts
 
-        for _ in 0..<attempts {
+        for attemptIndex in 0..<attempts {
             // Reset grid
             grid = Array(repeating: Array(repeating: emptySymbol, count: columns), count: rows)
+            directionGrid = Array(repeating: Array(repeating: Set<WordDirection>(), count: columns), count: rows)
             currentWords.removeAll()
             var placed: [PlacedWord] = []
 
-            // Shuffle words for this attempt
-            var shuffled = candidates
-            shuffled.shuffle(using: &rng)
-
-            // Sort by length descending, but with some randomness in equal-length groups
-            shuffled.sort { $0.count > $1.count }
+            let shuffled = orderedWords(for: candidates, overlapScores: overlapScores, attempt: attemptIndex)
 
             // Place words
             for word in shuffled {
@@ -77,21 +82,82 @@ final class CrosswordLayoutGenerator {
                 }
             }
 
-            if placed.count > bestPlaced.count {
+            let filledCells = grid.flatMap { $0 }.filter { $0 != emptySymbol }.count
+            if placed.count > bestPlaced.count || (placed.count == bestPlaced.count && filledCells > bestFilledCells) {
                 bestPlaced = placed
                 bestGrid = grid
+                bestFilledCells = filledCells
             }
 
-            // Good enough threshold for small grids
-            let filledCells = grid.flatMap { $0 }.filter { $0 != emptySymbol }.count
+            // Keep searching until the layout hits the requested word count
+            // and a healthy fill ratio for these small grids.
             let totalCells = columns * rows
-            if Double(filledCells) / Double(totalCells) >= 0.5 {
+            let density = Double(filledCells) / Double(totalCells)
+            if placed.count >= minimumWordCount && density >= Self.targetDensityThreshold {
                 break
             }
         }
 
         result = bestPlaced
         grid = bestGrid
+    }
+
+    private func buildOverlapScores(for words: [String]) -> [String: Int] {
+        var scores: [String: Int] = [:]
+        let letterSets = Dictionary(uniqueKeysWithValues: words.map { ($0, Set($0)) })
+
+        for word in words {
+            let uniqueLetters = letterSets[word]!
+            let score = words.reduce(into: 0) { partialResult, candidate in
+                guard candidate != word else { return }
+                let candidateLetters = letterSets[candidate]!
+                partialResult += uniqueLetters.intersection(candidateLetters).count
+            }
+            scores[word] = score
+        }
+
+        return scores
+    }
+
+    private func orderedWords(for candidates: [String], overlapScores: [String: Int], attempt: Int) -> [String] {
+        var ordered = candidates
+        ordered.shuffle(using: &rng)
+
+        // Rotate through length-first, overlap-first, and short-first orderings
+        // so each layout attempt explores a meaningfully different packing strategy.
+        switch attempt % 3 {
+        case 0:
+            // Start with longer words to build a central spine, then prefer words
+            // with lots of shared letters so later placements can intersect cleanly.
+            ordered.sort { lhs, rhs in
+                if lhs.count != rhs.count {
+                    return lhs.count > rhs.count
+                }
+                return overlapScores[lhs, default: 0] > overlapScores[rhs, default: 0]
+            }
+        case 1:
+            // Favor high-overlap words even if they are shorter; this tends to
+            // unlock extra placements once the grid already has a few anchors.
+            ordered.sort { lhs, rhs in
+                let lhsScore = overlapScores[lhs, default: 0]
+                let rhsScore = overlapScores[rhs, default: 0]
+                if lhsScore != rhsScore {
+                    return lhsScore > rhsScore
+                }
+                return lhs.count < rhs.count
+            }
+        default:
+            // Start from shorter words to squeeze more entries into the same
+            // footprint, using overlap score as the secondary tiebreaker.
+            ordered.sort { lhs, rhs in
+                if lhs.count != rhs.count {
+                    return lhs.count < rhs.count
+                }
+                return overlapScores[lhs, default: 0] > overlapScores[rhs, default: 0]
+            }
+        }
+
+        return ordered
     }
 
     // MARK: - Word Placement
@@ -223,7 +289,12 @@ final class CrosswordLayoutGenerator {
             let cell = getCell(column: c, row: r)
 
             if cell == letterStr {
-                // Intersection — this is great
+                // Reject if this cell is already used by a word in the same direction
+                // (e.g., two down words sharing the same column cells)
+                if directionGrid[r - 1][c - 1].contains(direction) {
+                    return 0
+                }
+                // Valid intersection with a perpendicular word
                 score += 1
                 hasIntersection = true
             } else if cell == emptySymbol {
@@ -252,6 +323,7 @@ final class CrosswordLayoutGenerator {
         var r = row
         for letter in word {
             setCell(column: c, row: r, value: String(letter))
+            directionGrid[r - 1][c - 1].insert(direction)
             if direction == .across { c += 1 } else { r += 1 }
         }
     }
