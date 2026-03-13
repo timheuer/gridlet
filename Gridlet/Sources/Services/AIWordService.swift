@@ -8,7 +8,7 @@ struct GeneratedWordClue: Equatable {
     @Guide(description: "A single everyday English word, 3 to 6 letters, uppercase, letters only, no proper nouns, abbreviations, or obscure crosswordese (overly specialized crossword vocabulary)")
     var word: String
 
-    @Guide(description: "A concise crossword-style clue for the word, 2 to 8 words long, must not contain the answer word")
+    @Guide(description: "A complete, concise crossword-style clue for the word, 2 to 8 words long, must not contain the answer word. Must be a grammatically complete phrase or definition — never end with a preposition (of, for, with, in, at, by, from, to), article (a, an, the), conjunction (and, or, but), or an incomplete modifier")
     var clue: String
 }
 
@@ -23,6 +23,15 @@ struct WordClueBatch: Equatable {
 /// Falls back to the bundled wordlist when Apple Intelligence is unavailable.
 final class AIWordService: Sendable {
     static let shared = AIWordService()
+
+    /// Words that, when appearing last in a clue, indicate an incomplete sentence.
+    private static let incompleteClueEnders: Set<String> = [
+        "a", "an", "the",
+        "of", "for", "with", "in", "at", "by", "from", "to", "into", "onto", "upon",
+        "and", "or", "but", "nor", "yet",
+        "is", "are", "was", "were",
+        "consisting", "having", "using", "including", "containing", "made", "composed"
+    ]
 
     private let fallbackService = WordListService.shared
 
@@ -48,6 +57,9 @@ final class AIWordService: Sendable {
                 - Prefer everyday vocabulary that most adults and older children would know
                 - Avoid obscure crosswordese, abbreviations, jargon, archaic terms, and very rare words
                 - Clues must be 2-8 words, must NOT contain the answer word
+                - Clues must be COMPLETE phrases or definitions — never truncated or cut off mid-sentence
+                - Clues must never end with a preposition (of, for, with, in, at, by, from, to),
+                article (a, an, the), conjunction (and, or, but), or a dangling modifier
                 - Clues should be clever and concise, like newspaper crossword clues
                 - All words must be different from each other
                 - Mix word lengths: include some 3-letter, some 4-letter, some 5-letter words
@@ -65,12 +77,23 @@ final class AIWordService: Sendable {
                 let word = entry.word.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
                 let clue = entry.clue.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                // Validate
+                // Validate word
                 guard word.count >= 3, word.count <= maxLength,
                       word.allSatisfy({ $0.isLetter && $0.isASCII }),
                       !clue.isEmpty else {
                     return nil
                 }
+
+                // Reject clues that end with a word that signals an incomplete sentence
+                let lastWord = clue
+                    .components(separatedBy: .whitespaces)
+                    .last?
+                    .lowercased()
+                    .trimmingCharacters(in: .punctuationCharacters) ?? ""
+                guard !AIWordService.incompleteClueEnders.contains(lastWord) else {
+                    return nil
+                }
+
                 return WordClue(word: word, clue: clue)
             }
 
