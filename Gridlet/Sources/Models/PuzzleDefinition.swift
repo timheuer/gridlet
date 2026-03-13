@@ -10,6 +10,8 @@ struct PuzzleDefinition: Codable, Identifiable, Sendable, Equatable {
     let generatedAt: Date
     /// Whether this puzzle was generated using Apple Intelligence.
     let isAIGenerated: Bool
+    let aiGenerationStatus: AIGenerationStatus
+    let aiGenerationDetail: String?
 
     init(
         id: UUID = UUID(),
@@ -18,7 +20,9 @@ struct PuzzleDefinition: Codable, Identifiable, Sendable, Equatable {
         cells: [[CellDefinition]],
         words: [WordEntry],
         generatedAt: Date = Date(),
-        isAIGenerated: Bool = false
+        isAIGenerated: Bool = false,
+        aiGenerationStatus: AIGenerationStatus? = nil,
+        aiGenerationDetail: String? = nil
     ) {
         self.id = id
         self.seed = seed
@@ -26,7 +30,40 @@ struct PuzzleDefinition: Codable, Identifiable, Sendable, Equatable {
         self.cells = cells
         self.words = words
         self.generatedAt = generatedAt
-        self.isAIGenerated = isAIGenerated
+        let resolvedStatus = aiGenerationStatus ?? (isAIGenerated ? .generatedWithAI : .fallbackReasonUnknown)
+        self.isAIGenerated = resolvedStatus.isAIGenerated
+        self.aiGenerationStatus = resolvedStatus
+        self.aiGenerationDetail = aiGenerationDetail
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case seed
+        case gridSize
+        case cells
+        case words
+        case generatedAt
+        case isAIGenerated
+        case aiGenerationStatus
+        case aiGenerationDetail
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        seed = try container.decode(UInt64.self, forKey: .seed)
+        gridSize = try container.decode(GridSize.self, forKey: .gridSize)
+        cells = try container.decode([[CellDefinition]].self, forKey: .cells)
+        words = try container.decode([WordEntry].self, forKey: .words)
+        generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+
+        let decodedIsAIGenerated = try container.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
+        let decodedStatus = try container.decodeIfPresent(AIGenerationStatus.self, forKey: .aiGenerationStatus)
+        let resolvedStatus = decodedStatus ?? (decodedIsAIGenerated ? .generatedWithAI : .fallbackReasonUnknown)
+
+        isAIGenerated = resolvedStatus.isAIGenerated
+        aiGenerationStatus = resolvedStatus
+        aiGenerationDetail = try container.decodeIfPresent(String.self, forKey: .aiGenerationDetail)
     }
 
     /// Returns the solution letter at (row, col), or nil for black cells.

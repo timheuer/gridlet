@@ -125,6 +125,63 @@ struct ModelTests {
         #expect(puzzle.words(at: 0, col: 1).count == 1)
         #expect(puzzle.word(at: 0, col: 0, direction: .across)?.text == "CAT")
         #expect(puzzle.word(at: 0, col: 0, direction: .down) == nil)
+                #expect(puzzle.aiGenerationStatus == .fallbackReasonUnknown)
+        }
+
+        @Test("PuzzleDefinition preserves AI diagnostics")
+        func puzzleDefinitionAIDiagnostics() throws {
+                let cells = [[CellDefinition(row: 0, col: 0, letter: "A")]]
+                let word = WordEntry(direction: .across, text: "A", clue: "Letter", startRow: 0, startCol: 0)
+                let puzzle = PuzzleDefinition(
+                        seed: 7,
+                        gridSize: .five,
+                        cells: cells,
+                        words: [word],
+                        aiGenerationStatus: .validationFailed,
+                        aiGenerationDetail: "Accepted 12 validated AI entries; required at least 40 to use AI output."
+                )
+
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                let data = try encoder.encode(puzzle)
+
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                let decoded = try decoder.decode(PuzzleDefinition.self, from: data)
+
+                #expect(decoded.isAIGenerated == false)
+                #expect(decoded.aiGenerationStatus == .validationFailed)
+                #expect(decoded.aiGenerationDetail == "Accepted 12 validated AI entries; required at least 40 to use AI output.")
+        }
+
+        @Test("PuzzleDefinition decodes legacy AI metadata")
+        func puzzleDefinitionLegacyAIDecode() throws {
+                let legacyJSON = """
+                {
+                    "id": "11111111-1111-1111-1111-111111111111",
+                    "seed": 42,
+                    "gridSize": "five",
+                    "cells": [[{"row": 0, "col": 0, "letter": "C"}]],
+                    "words": [{
+                        "id": "22222222-2222-2222-2222-222222222222",
+                        "direction": "across",
+                        "text": "CAT",
+                        "clue": "Pet",
+                        "startRow": 0,
+                        "startCol": 0
+                    }],
+                    "generatedAt": "2026-03-13T00:00:00Z",
+                    "isAIGenerated": false
+                }
+                """.data(using: .utf8)!
+
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                let decoded = try decoder.decode(PuzzleDefinition.self, from: legacyJSON)
+
+                #expect(decoded.isAIGenerated == false)
+                #expect(decoded.aiGenerationStatus == .fallbackReasonUnknown)
+                #expect(decoded.aiGenerationDetail == nil)
     }
 
     @Test("CellDefinition Codable round-trip")

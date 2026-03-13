@@ -49,6 +49,10 @@ struct DevInfoView: View {
                     LabeledContent("Generated", value: puzzle.generatedAt.formatted(date: .abbreviated, time: .shortened))
                     LabeledContent("Puzzle ID", value: puzzle.id.uuidString.prefix(8) + "…")
                     LabeledContent("AI Generated", value: puzzle.isAIGenerated ? "Yes" : "No")
+                    LabeledContent("AI Status", value: puzzle.aiGenerationStatus.developerSummary)
+                    if let detail = puzzle.aiGenerationDetail {
+                        LabeledContent("AI Detail", value: detail)
+                    }
                 }
 
                 Section("Grid Stats") {
@@ -70,7 +74,7 @@ struct DevInfoView: View {
                 }
 
                 Section("Environment") {
-                    LabeledContent("Apple Intelligence", value: aiAvailable ? "Available" : "Unavailable")
+                    LabeledContent("Apple Intelligence Supported", value: aiAvailable ? "Yes" : "No")
                     #if DEBUG
                     LabeledContent("Build", value: "Debug")
                     #else

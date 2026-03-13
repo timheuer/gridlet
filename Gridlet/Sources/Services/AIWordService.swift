@@ -24,6 +24,12 @@ struct WordClueBatch: Equatable {
 final class AIWordService: Sendable {
     static let shared = AIWordService()
 
+    struct GenerationResult: Sendable {
+        let words: [WordClue]
+        let status: AIGenerationStatus
+        let detail: String?
+    }
+
     /// Words that, when appearing last in a clue, indicate an incomplete sentence.
     private static let incompleteClueEnders: Set<String> = [
         "a", "an", "the",
@@ -42,10 +48,14 @@ final class AIWordService: Sendable {
 
     /// Generate a batch of word-clue pairs for a puzzle.
     /// Uses Apple Intelligence if available, otherwise falls back to bundled list.
-    /// Returns the words and a flag indicating whether Apple Intelligence was actually used.
-    func generateWordClues(count: Int, maxLength: Int, seed: UInt64) async -> (words: [WordClue], usedAI: Bool) {
+    /// Returns the words along with generation diagnostics for developer mode.
+    func generateWordClues(count: Int, maxLength: Int, seed: UInt64) async -> GenerationResult {
         guard isAvailable else {
-            return (fallbackWords(count: count, maxLength: maxLength, seed: seed), false)
+            return GenerationResult(
+                words: fallbackWords(count: count, maxLength: maxLength, seed: seed),
+                status: .appleIntelligenceUnavailable,
+                detail: nil
+            )
         }
 
         do {
@@ -101,17 +111,30 @@ final class AIWordService: Sendable {
             // If we got enough valid entries, use them; otherwise supplement with fallback
             if generated.count >= count / 2 {
                 var results = generated
+                let supplemented = results.count < count
                 if results.count < count {
                     let extra = fallbackWords(count: count - results.count, maxLength: maxLength, seed: seed)
                     results.append(contentsOf: extra)
                 }
-                return (Array(results.prefix(count)), true)
+                return GenerationResult(
+                    words: Array(results.prefix(count)),
+                    status: supplemented ? .generatedWithAISupplement : .generatedWithAI,
+                    detail: supplemented ? "Accepted \(generated.count) validated AI entries and supplemented \(count - generated.count) entries from the bundled word list." : "Accepted \(generated.count) validated AI entries."
+                )
             }
-        } catch {
-            // AI generation failed, fall back silently
-        }
 
-        return (fallbackWords(count: count, maxLength: maxLength, seed: seed), false)
+            return GenerationResult(
+                words: fallbackWords(count: count, maxLength: maxLength, seed: seed),
+                status: .validationFailed,
+                detail: "Accepted \(generated.count) validated AI entries; required at least \(count / 2) to use AI output."
+            )
+        } catch {
+            return GenerationResult(
+                words: fallbackWords(count: count, maxLength: maxLength, seed: seed),
+                status: .generationRequestFailed,
+                detail: error.localizedDescription
+            )
+        }
     }
 
     /// Fallback: return words from the bundled wordlist.

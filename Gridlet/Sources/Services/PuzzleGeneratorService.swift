@@ -37,14 +37,21 @@ final class PuzzleGeneratorService: @unchecked Sendable {
         let gridSize: GridSize = rng.nextInt(upperBound: 2) == 0 ? .five : .six
         let dim = gridSize.dimension
 
-        // Get AI-generated words
-        let (wordClues, usedAI) = await aiWordService.generateWordClues(count: 80, maxLength: dim, seed: seed)
+        // Get AI-generated words and diagnostics
+        let generationResult = await aiWordService.generateWordClues(count: 80, maxLength: dim, seed: seed)
+        let wordClues = generationResult.words
 
         // Build the puzzle using AI words, with clue lookup from AI results
         let words = wordClues.map { $0.word.uppercased() }
         let aiClues = Dictionary(wordClues.map { ($0.word.uppercased(), $0.clue) }, uniquingKeysWith: { first, _ in first })
 
-        let puzzle = generateFromWords(words, seed: seed, gridSize: gridSize, isAIGenerated: usedAI, clueLookup: { word in
+        let puzzle = generateFromWords(
+            words,
+            seed: seed,
+            gridSize: gridSize,
+            aiGenerationStatus: generationResult.status,
+            aiGenerationDetail: generationResult.detail,
+            clueLookup: { word in
             aiClues[word] ?? self.wordListService.clue(for: word)
         })
         return puzzle
@@ -59,7 +66,8 @@ final class PuzzleGeneratorService: @unchecked Sendable {
         _ words: [String],
         seed: UInt64,
         gridSize: GridSize,
-        isAIGenerated: Bool = false,
+        aiGenerationStatus: AIGenerationStatus = .fallbackReasonUnknown,
+        aiGenerationDetail: String? = nil,
         clueLookup: ((String) -> String)? = nil
     ) -> PuzzleDefinition {
         let dim = gridSize.dimension
@@ -92,7 +100,15 @@ final class PuzzleGeneratorService: @unchecked Sendable {
             }
         }
 
-        return buildPuzzle(seed: seed, gridSize: gridSize, placed: bestPlaced, grid: bestGrid, isAIGenerated: isAIGenerated, clueLookup: lookup)
+        return buildPuzzle(
+            seed: seed,
+            gridSize: gridSize,
+            placed: bestPlaced,
+            grid: bestGrid,
+            aiGenerationStatus: aiGenerationStatus,
+            aiGenerationDetail: aiGenerationDetail,
+            clueLookup: lookup
+        )
     }
 
     private func buildPuzzle(
@@ -100,7 +116,8 @@ final class PuzzleGeneratorService: @unchecked Sendable {
         gridSize: GridSize,
         placed: [CrosswordLayoutGenerator.PlacedWord],
         grid: [[Character?]],
-        isAIGenerated: Bool = false,
+        aiGenerationStatus: AIGenerationStatus = .fallbackReasonUnknown,
+        aiGenerationDetail: String? = nil,
         clueLookup: (String) -> String
     ) -> PuzzleDefinition {
         let dim = gridSize.dimension
@@ -126,7 +143,9 @@ final class PuzzleGeneratorService: @unchecked Sendable {
             gridSize: gridSize,
             cells: cells,
             words: words,
-            isAIGenerated: isAIGenerated
+            isAIGenerated: aiGenerationStatus.isAIGenerated,
+            aiGenerationStatus: aiGenerationStatus,
+            aiGenerationDetail: aiGenerationDetail
         )
     }
 
