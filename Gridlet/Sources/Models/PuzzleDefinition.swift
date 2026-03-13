@@ -8,6 +8,8 @@ struct PuzzleDefinition: Codable, Identifiable, Sendable, Equatable {
     let cells: [[CellDefinition]]
     let words: [WordEntry]
     let generatedAt: Date
+    /// Whether this puzzle was generated using Apple Intelligence.
+    let isAIGenerated: Bool
 
     init(
         id: UUID = UUID(),
@@ -15,7 +17,8 @@ struct PuzzleDefinition: Codable, Identifiable, Sendable, Equatable {
         gridSize: GridSize,
         cells: [[CellDefinition]],
         words: [WordEntry],
-        generatedAt: Date = Date()
+        generatedAt: Date = Date(),
+        isAIGenerated: Bool = false
     ) {
         self.id = id
         self.seed = seed
@@ -23,6 +26,7 @@ struct PuzzleDefinition: Codable, Identifiable, Sendable, Equatable {
         self.cells = cells
         self.words = words
         self.generatedAt = generatedAt
+        self.isAIGenerated = isAIGenerated
     }
 
     /// Returns the solution letter at (row, col), or nil for black cells.

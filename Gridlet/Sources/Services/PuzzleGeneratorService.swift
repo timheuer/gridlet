@@ -38,13 +38,13 @@ final class PuzzleGeneratorService: @unchecked Sendable {
         let dim = gridSize.dimension
 
         // Get AI-generated words
-        let wordClues = await aiWordService.generateWordClues(count: 80, maxLength: dim, seed: seed)
+        let (wordClues, usedAI) = await aiWordService.generateWordClues(count: 80, maxLength: dim, seed: seed)
 
         // Build the puzzle using AI words, with clue lookup from AI results
         let words = wordClues.map { $0.word.uppercased() }
         let aiClues = Dictionary(wordClues.map { ($0.word.uppercased(), $0.clue) }, uniquingKeysWith: { first, _ in first })
 
-        let puzzle = generateFromWords(words, seed: seed, gridSize: gridSize, clueLookup: { word in
+        let puzzle = generateFromWords(words, seed: seed, gridSize: gridSize, isAIGenerated: usedAI, clueLookup: { word in
             aiClues[word] ?? self.wordListService.clue(for: word)
         })
         return puzzle
@@ -59,6 +59,7 @@ final class PuzzleGeneratorService: @unchecked Sendable {
         _ words: [String],
         seed: UInt64,
         gridSize: GridSize,
+        isAIGenerated: Bool = false,
         clueLookup: ((String) -> String)? = nil
     ) -> PuzzleDefinition {
         let dim = gridSize.dimension
@@ -91,7 +92,7 @@ final class PuzzleGeneratorService: @unchecked Sendable {
             }
         }
 
-        return buildPuzzle(seed: seed, gridSize: gridSize, placed: bestPlaced, grid: bestGrid, clueLookup: lookup)
+        return buildPuzzle(seed: seed, gridSize: gridSize, placed: bestPlaced, grid: bestGrid, isAIGenerated: isAIGenerated, clueLookup: lookup)
     }
 
     private func buildPuzzle(
@@ -99,6 +100,7 @@ final class PuzzleGeneratorService: @unchecked Sendable {
         gridSize: GridSize,
         placed: [CrosswordLayoutGenerator.PlacedWord],
         grid: [[Character?]],
+        isAIGenerated: Bool = false,
         clueLookup: (String) -> String
     ) -> PuzzleDefinition {
         let dim = gridSize.dimension
@@ -123,7 +125,8 @@ final class PuzzleGeneratorService: @unchecked Sendable {
             seed: seed,
             gridSize: gridSize,
             cells: cells,
-            words: words
+            words: words,
+            isAIGenerated: isAIGenerated
         )
     }
 

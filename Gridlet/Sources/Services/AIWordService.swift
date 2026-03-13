@@ -42,9 +42,10 @@ final class AIWordService: Sendable {
 
     /// Generate a batch of word-clue pairs for a puzzle.
     /// Uses Apple Intelligence if available, otherwise falls back to bundled list.
-    func generateWordClues(count: Int, maxLength: Int, seed: UInt64) async -> [WordClue] {
+    /// Returns the words and a flag indicating whether Apple Intelligence was actually used.
+    func generateWordClues(count: Int, maxLength: Int, seed: UInt64) async -> (words: [WordClue], usedAI: Bool) {
         guard isAvailable else {
-            return fallbackWords(count: count, maxLength: maxLength, seed: seed)
+            return (fallbackWords(count: count, maxLength: maxLength, seed: seed), false)
         }
 
         do {
@@ -104,13 +105,13 @@ final class AIWordService: Sendable {
                     let extra = fallbackWords(count: count - results.count, maxLength: maxLength, seed: seed)
                     results.append(contentsOf: extra)
                 }
-                return Array(results.prefix(count))
+                return (Array(results.prefix(count)), true)
             }
         } catch {
             // AI generation failed, fall back silently
         }
 
-        return fallbackWords(count: count, maxLength: maxLength, seed: seed)
+        return (fallbackWords(count: count, maxLength: maxLength, seed: seed), false)
     }
 
     /// Fallback: return words from the bundled wordlist.

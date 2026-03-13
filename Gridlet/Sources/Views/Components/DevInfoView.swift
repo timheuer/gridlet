@@ -48,6 +48,7 @@ struct DevInfoView: View {
                     LabeledContent("Grid Size", value: "\(puzzle.gridSize.dimension)×\(puzzle.gridSize.dimension)")
                     LabeledContent("Generated", value: puzzle.generatedAt.formatted(date: .abbreviated, time: .shortened))
                     LabeledContent("Puzzle ID", value: puzzle.id.uuidString.prefix(8) + "…")
+                    LabeledContent("AI Generated", value: puzzle.isAIGenerated ? "Yes" : "No")
                 }
 
                 Section("Grid Stats") {

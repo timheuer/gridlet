@@ -97,6 +97,12 @@ struct PuzzleView: View {
 
       Spacer()
 
+      if viewModel.puzzle.isAIGenerated {
+        Image(systemName: "sparkles")
+          .foregroundStyle(.purple)
+          .accessibilityLabel("Generated with Apple Intelligence")
+      }
+
       if viewModel.devMode {
         Button {
           viewModel.devMode.toggle()
