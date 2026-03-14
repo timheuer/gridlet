@@ -1,8 +1,8 @@
-# Gridlet — App Store Information
+# Crucigram — App Store Information
 
 ## App Name
 
-Gridlet: Daily Crosswords
+Crucigram: Daily Crosswords
 
 ## Subtitle
 
@@ -12,7 +12,7 @@ Bite-sized word puzzles
 
 Challenge yourself with a fresh crossword puzzle every day — or play unlimited puzzles anytime you want.
 
-Gridlet delivers bite-sized 5×5 and 6×6 crossword puzzles you can solve in minutes. Tap to select, type to fill, and check your work as you go. Keep your daily streak alive or practice with unlimited randomly-generated puzzles.
+Crucigram delivers bite-sized 5×5 and 6×6 crossword puzzles you can solve in minutes. Tap to select, type to fill, and check your work as you go. Keep your daily streak alive or practice with unlimited randomly-generated puzzles.
 
 **Daily Puzzle**
 A new puzzle every day, generated just for you. Solve it to maintain your streak and track your stats.
@@ -62,7 +62,7 @@ Puzzle Games
 
 ## App Review Notes
 
-Gridlet is a crossword puzzle game that works entirely offline. No account, permissions, or network connection required.
+Crucigram is a crossword puzzle game that works entirely offline. No account, permissions, or network connection required.
 
 **How to Test:**
 

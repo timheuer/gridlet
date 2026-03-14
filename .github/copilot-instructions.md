@@ -1,7 +1,7 @@
-# Gridlet — Copilot Instructions
+# Crucigram — Copilot Instructions
 
 ## Project Overview
-Gridlet is an offline-first iPhone word puzzle game built with SwiftUI (iOS 26+, `com.timheuer.gridlet`). Players solve 5×5 or 6×6 crossword-style grids with words running horizontally and vertically only. The app offers a deterministic daily puzzle plus unlimited algorithmically-generated puzzles — all generated on-device with no backend.
+Crucigram is an offline-first iPhone word puzzle game built with SwiftUI (iOS 26+, `com.timheuer.gridlet`). Players solve 5×5 or 6×6 crossword-style grids with words running horizontally and vertically only. The app offers a deterministic daily puzzle plus unlimited algorithmically-generated puzzles — all generated on-device with no backend.
 
 ## Build Instructions
 - **Always run `xcodegen generate` before building.** The Xcode project is generated from `project.yml` — never edit `Gridlet.xcodeproj` directly.
@@ -9,6 +9,13 @@ Gridlet is an offline-first iPhone word puzzle game built with SwiftUI (iOS 26+,
   ```
   xcodegen generate
   xcodebuild build -project Gridlet.xcodeproj -scheme Gridlet -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
+  ```
+- **For routine verification**, run the fast test suites only (excludes the slow `PuzzleGenerationPipelineTests`):
+  ```
+  xcodebuild test -project Gridlet.xcodeproj -scheme GridletTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' -skip-testing:GridletTests/PuzzleGenerationPipelineTests
+  ```
+- **For full test runs** (e.g., before release or when changing generation logic), run all tests:
+  ```
   xcodebuild test -project Gridlet.xcodeproj -scheme GridletTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
   ```
 - Use `-quiet` flag for routine builds; omit it when debugging build failures.
@@ -32,7 +39,7 @@ Gridlet is an offline-first iPhone word puzzle game built with SwiftUI (iOS 26+,
 | Scripts | `scripts/` | `generate_wordlist.py` — generates fallback `wordlist.json` from Open English WordNet + wordfreq |
 | Store Info | `store-info/` | `app-information.md` — App Store metadata, descriptions, review notes |
 | Privacy | `Gridlet/Resources/PrivacyInfo.xcprivacy` | Required iOS 17+ privacy manifest (declares no data collection) |
-| Licenses | `LICENSE` | MIT license for Gridlet + third-party notices (iOS-Crosswords-Generator, Open English WordNet, wordfreq) |
+| Licenses | `LICENSE` | MIT license for Crucigram + third-party notices (iOS-Crosswords-Generator, Open English WordNet, wordfreq) |
 
 ## Word & Clue Generation
 - **Primary**: `AIWordService` uses Apple Intelligence (Foundation Models, `@Generable` macro) to generate word-clue pairs on-device.
@@ -65,7 +72,7 @@ Gridlet is an offline-first iPhone word puzzle game built with SwiftUI (iOS 26+,
 - **No flexible Spacers** between title and buttons on home screen — use fixed spacing.
 
 ## Developer Mode
-- Activated by tapping the "Gridlet" title 5 times on the home screen (works in release builds)
+- Activated by tapping the "Crucigram" title 5 times on the home screen (works in release builds)
 - Persisted via `@AppStorage("devModeEnabled")`
 - Deactivated by tapping the hammer icon in the toolbar
 - Features: show solution letters (dimmed), dev info sheet (puzzle metadata, word list, grid stats), reset daily, replay onboarding

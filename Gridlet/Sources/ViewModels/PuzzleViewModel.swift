@@ -93,13 +93,18 @@ final class PuzzleViewModel {
     let col = cell.col
     guard !puzzle.isBlackCell(row: row, col: col) else { return }
 
+    // Track whether we're filling the last empty cell (first-time completion of word)
+    let wasEmpty = gameState.playerGrid[row][col] == nil
+    let emptyCellsBefore = activeWordCells.count(where: { gameState.playerGrid[$0.row][$0.col] == nil })
+
     gameState.playerGrid[row][col] = letter
 
     // Clear any red overlay on this cell since the letter changed
     gameState.checkedWrongCells.remove(cell)
 
-    // Auto-advance to next empty cell in the active word
-    advanceToNextCell()
+    // Auto-advance: jump to next word only if this keystroke just completed the word
+    let wordJustCompleted = wasEmpty && emptyCellsBefore == 1
+    advanceToNextCell(wordJustCompleted: wordJustCompleted)
 
     checkCompletion()
     save()
@@ -365,12 +370,12 @@ final class PuzzleViewModel {
     }
   }
 
-  private func advanceToNextCell() {
+  private func advanceToNextCell(wordJustCompleted: Bool = false) {
     guard let cell = gameState.selectedCell else { return }
     let wordCells = activeWordCells
     guard let currentIndex = wordCells.firstIndex(of: cell) else { return }
 
-    // Find next empty cell in this word
+    // First, try to find an empty cell in the rest of this word
     for i in (currentIndex + 1)..<wordCells.count {
       let pos = wordCells[i]
       if gameState.playerGrid[pos.row][pos.col] == nil {
@@ -379,9 +384,14 @@ final class PuzzleViewModel {
       }
     }
 
-    // No empty cells remaining in this word — auto-advance to next word
-    if isActiveWordFull {
+    // No empty cells ahead — if the word just became full (first-time completion),
+    // auto-advance to the next word. Otherwise stay in the word so the player
+    // can continue editing filled cells.
+    if wordJustCompleted {
       selectNextWord()
+    } else if currentIndex + 1 < wordCells.count {
+      // Move to the next cell in the word even though it's filled
+      gameState.selectedCell = wordCells[currentIndex + 1]
     }
   }
 

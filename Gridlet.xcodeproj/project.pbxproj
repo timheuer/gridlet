@@ -30,6 +30,7 @@
 		A22BD57A473F3F86190F357D /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E057B13461FC75EF2DFA0F68 /* GameState.swift */; };
 		A47BCE313BE79B99F1592D5D /* PersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBA874EDADDD03362CAEC06 /* PersistenceService.swift */; };
 		A6FEE118B21D16DE9FDDA18F /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8056BE2FDC3E348EF003E8 /* ModelTests.swift */; };
+		ABBE4B58E7F73F087E0EFE6C /* PuzzleGenerationPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617237FFB7CC8B98D9D6FFC6 /* PuzzleGenerationPipelineTests.swift */; };
 		B86074B2C930FCC7E7F71C26 /* AIWordService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2391CB3F5500032E9FEBBDA0 /* AIWordService.swift */; };
 		BA92BE3665EEAA686FC0A28B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63177488FB00E86FE4EFE9BE /* OnboardingView.swift */; };
 		CD44C21480F3C04532704217 /* PuzzleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B064C6AD304DF207E398857 /* PuzzleView.swift */; };
@@ -68,6 +69,7 @@
 		3DEA389D36B5684F8A5CF568 /* PuzzleViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PuzzleViewModel.swift; sourceTree = "<group>"; };
 		4E21ADC063FDAA8EB7CC5BB9 /* ClueBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClueBarView.swift; sourceTree = "<group>"; };
 		564B546B248442B17AFA0AE7 /* PuzzleDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PuzzleDefinition.swift; sourceTree = "<group>"; };
+		617237FFB7CC8B98D9D6FFC6 /* PuzzleGenerationPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PuzzleGenerationPipelineTests.swift; sourceTree = "<group>"; };
 		62848D5EB9078B15E20F75D4 /* Gridlet.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Gridlet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		63177488FB00E86FE4EFE9BE /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		701B4F0FB8505CCBAFC05DA5 /* GridDensityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridDensityTests.swift; sourceTree = "<group>"; };
@@ -179,6 +181,7 @@
 				FEE1B9C182A04B27356A06F3 /* GeneratorTests.swift */,
 				701B4F0FB8505CCBAFC05DA5 /* GridDensityTests.swift */,
 				BB8056BE2FDC3E348EF003E8 /* ModelTests.swift */,
+				617237FFB7CC8B98D9D6FFC6 /* PuzzleGenerationPipelineTests.swift */,
 			);
 			path = GridletTests;
 			sourceTree = "<group>";
@@ -357,6 +360,7 @@
 				8CBD1041916971ACF0AB743E /* GeneratorTests.swift in Sources */,
 				875CC4A28990852697F9CD05 /* GridDensityTests.swift in Sources */,
 				A6FEE118B21D16DE9FDDA18F /* ModelTests.swift in Sources */,
+				ABBE4B58E7F73F087E0EFE6C /* PuzzleGenerationPipelineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -412,7 +416,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				INFOPLIST_KEY_CFBundleDisplayName = Gridlet;
+				INFOPLIST_KEY_CFBundleDisplayName = Crucigram;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.puzzle-games";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -500,7 +504,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				INFOPLIST_KEY_CFBundleDisplayName = Gridlet;
+				INFOPLIST_KEY_CFBundleDisplayName = Crucigram;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.puzzle-games";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

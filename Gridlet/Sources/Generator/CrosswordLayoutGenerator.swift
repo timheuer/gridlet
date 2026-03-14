@@ -42,7 +42,8 @@ final class CrosswordLayoutGenerator {
 
     /// Generate a crossword layout from the given words.
     /// Runs multiple full attempts with different word orderings and keeps the densest result.
-    func generate(words: [String], minimumWordCount: Int = 0) {
+    /// Words in `preferredWords` are boosted in ordering so they're tried first.
+    func generate(words: [String], minimumWordCount: Int = 0, preferredWords: Set<String> = []) {
         let candidates = Array(Set(words
             .map { $0.uppercased() }
             .filter { $0.count <= max(columns, rows) && $0.count >= 2 }))
@@ -60,7 +61,7 @@ final class CrosswordLayoutGenerator {
             currentWords.removeAll()
             var placed: [PlacedWord] = []
 
-            let shuffled = orderedWords(for: candidates, overlapScores: overlapScores, attempt: attemptIndex)
+            let shuffled = orderedWords(for: candidates, overlapScores: overlapScores, attempt: attemptIndex, preferredWords: preferredWords)
 
             // Place words
             for word in shuffled {
@@ -119,7 +120,7 @@ final class CrosswordLayoutGenerator {
         return scores
     }
 
-    private func orderedWords(for candidates: [String], overlapScores: [String: Int], attempt: Int) -> [String] {
+    private func orderedWords(for candidates: [String], overlapScores: [String: Int], attempt: Int, preferredWords: Set<String> = []) -> [String] {
         var ordered = candidates
         ordered.shuffle(using: &rng)
 
@@ -155,6 +156,14 @@ final class CrosswordLayoutGenerator {
                 }
                 return overlapScores[lhs, default: 0] > overlapScores[rhs, default: 0]
             }
+        }
+
+        // If we have preferred (AI) words, partition so they come first
+        // within each ordering strategy to maximize AI word placement.
+        if !preferredWords.isEmpty {
+            let preferred = ordered.filter { preferredWords.contains($0) }
+            let rest = ordered.filter { !preferredWords.contains($0) }
+            ordered = preferred + rest
         }
 
         return ordered

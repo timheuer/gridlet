@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// First-run onboarding flow explaining how to play Gridlet.
+/// First-run onboarding flow explaining how to play Crucigram.
 struct OnboardingView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var currentPage = 0
@@ -8,9 +8,21 @@ struct OnboardingView: View {
   private let pages: [OnboardingPage] = [
     OnboardingPage(
       icon: "square.grid.3x3.fill",
-      title: "Welcome to Gridlet",
+      title: "Welcome to Crucigram",
       description:
         "A bite-sized crossword puzzle you can solve in minutes. Fill the grid with words that run across and down."
+    ),
+    OnboardingPage(
+      icon: "calendar.badge.clock",
+      title: "Two Ways to Play",
+      description:
+        "Solve the Daily Puzzle to build your streak — a new one every day. Or tap Unlimited to play as many puzzles as you want, anytime."
+    ),
+    OnboardingPage(
+      icon: "sparkles",
+      title: "Crafted On-Device",
+      description:
+        "Each puzzle is generated in real time using on-device intelligence. It may take a few seconds to create your puzzle — the smart robots are thinking!"
     ),
     OnboardingPage(
       icon: "hand.tap.fill",
@@ -29,12 +41,6 @@ struct OnboardingView: View {
       title: "Check Your Work",
       description:
         "Tap Check to verify the currently selected word. Wrong letters are highlighted in red — fix them and try again."
-    ),
-    OnboardingPage(
-      icon: "calendar.badge.clock",
-      title: "Daily & Unlimited",
-      description:
-        "A new daily puzzle every day — keep your streak alive! Or play unlimited puzzles anytime for extra practice."
     ),
   ]
 

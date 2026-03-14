@@ -23,7 +23,7 @@ targets:
       base:
         CODE_SIGN_STYLE: Automatic
         PRODUCT_BUNDLE_IDENTIFIER: com.timheuer.gridlet
-        INFOPLIST_KEY_CFBundleDisplayName: "Gridlet"
+        INFOPLIST_KEY_CFBundleDisplayName: "Crucigram"
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.puzzle-games"
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES

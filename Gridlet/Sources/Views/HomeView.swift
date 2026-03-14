@@ -41,7 +41,7 @@ struct HomeView: View {
         // Title area
         VStack(spacing: 8) {
             HStack(spacing: 4) {
-                Text("Gridlet")
+                Text("Crucigram")
                     .font(.system(size: 42, weight: .bold, design: .rounded))
                     .accessibilityAddTraits(.isHeader)
                     .onTapGesture {

@@ -1,4 +1,4 @@
-# Gridlet
+# Crucigram
 
 A bite-sized crossword puzzle game for iPhone. Daily puzzles, unlimited play, fully offline.
 
@@ -66,7 +66,7 @@ scripts/                   # Build and utility scripts
 
 ## Privacy
 
-Gridlet collects no data. All game state and statistics are stored locally on-device. See the full [Privacy Policy](https://timheuer.com/gridlet/privacy).
+Crucigram collects no data. All game state and statistics are stored locally on-device. See the full [Privacy Policy](https://timheuer.com/gridlet/privacy).
 
 ## License
 

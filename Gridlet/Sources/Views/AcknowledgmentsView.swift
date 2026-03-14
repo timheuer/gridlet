@@ -10,7 +10,7 @@ struct AcknowledgmentsView: View {
   var body: some View {
     List {
       Section {
-        Text("Gridlet uses the following open source software and data.")
+        Text("Crucigram uses the following open source software and data.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }

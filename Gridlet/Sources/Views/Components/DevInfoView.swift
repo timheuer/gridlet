@@ -50,6 +50,7 @@ struct DevInfoView: View {
                     LabeledContent("Puzzle ID", value: puzzle.id.uuidString.prefix(8) + "…")
                     LabeledContent("AI Generated", value: puzzle.isAIGenerated ? "Yes" : "No")
                     LabeledContent("AI Status", value: puzzle.aiGenerationStatus.developerSummary)
+                    LabeledContent("AI Words", value: "\(puzzle.words.filter { $0.source == .ai }.count) of \(puzzle.words.count)")
                     if let detail = puzzle.aiGenerationDetail {
                         LabeledContent("AI Detail", value: detail)
                     }
@@ -109,6 +110,13 @@ struct DevInfoView: View {
             HStack {
                 Text(word.text)
                     .font(.system(.body, design: .monospaced).bold())
+                Text(word.source == .ai ? "AI" : "Bundled")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(word.source == .ai ? Color.purple.opacity(0.2) : Color.orange.opacity(0.2))
+                    .foregroundStyle(word.source == .ai ? .purple : .orange)
+                    .clipShape(Capsule())
                 Spacer()
                 Text("(\(word.startRow),\(word.startCol))")
                     .font(.caption)

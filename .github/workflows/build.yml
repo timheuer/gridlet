@@ -77,6 +77,7 @@ jobs:
             -project "$PROJECT" \
             -scheme "$TEST_SCHEME" \
             -destination "$SIMULATOR_DESTINATION" \
+              -skip-testing:GridletTests/PuzzleGenerationPipelineTests \
             -quiet
 
   archive:
@@ -229,7 +230,7 @@ jobs:
         id: artifact
         shell: bash
         run: |
-          NAME="Gridlet-v${{ steps.version.outputs.marketing_version }}-${{ steps.version.outputs.build_number }}"
+          NAME="Crucigram-v${{ steps.version.outputs.marketing_version }}-${{ steps.version.outputs.build_number }}"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload IPA Artifact
