@@ -185,13 +185,15 @@ final class AIWordService: Sendable {
     let avoidBlock = makeAvoidBlock(from: recentWords)
     let instructions = makeInstructions(maxLength: maxLength, avoidBlock: avoidBlock)
 
-    let session = LanguageModelSession(instructions: instructions)
-
     var allGenerated: [WordClue] = []
     var seenWords: Set<String> = []
 
     for round in 0..<Self.batchRounds {
       try Task.checkCancellation()
+
+      // Create a fresh session per round so conversation history from previous
+      // rounds does not accumulate and exhaust the model's context window.
+      let session = LanguageModelSession(instructions: instructions)
 
       let combinedAvoidWords = Array(seenWords.union(recentWordsSet)).sorted()
       let roundPrompt = makeRoundPrompt(
