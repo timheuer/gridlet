@@ -39,25 +39,25 @@ struct HomeView: View {
 
         // Title area
         VStack(spacing: 8) {
-            HStack(spacing: 4) {
-                Text("Crucigram")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                    .accessibilityAddTraits(.isHeader)
-                    .onTapGesture {
-                        titleTapCount += 1
-                        if titleTapCount >= 5 {
-                            devModeEnabled.toggle()
-                            titleTapCount = 0
-                        }
-                    }
-                Image(systemName: "sparkles")
-                  .symbolRenderingMode(.hierarchical)
-                  .foregroundStyle(Color.accentColor)
-            }
+          HStack(spacing: 4) {
+            Text("Crucigram")
+              .font(.system(size: 42, weight: .bold, design: .rounded))
+              .accessibilityAddTraits(.isHeader)
+              .onTapGesture {
+                titleTapCount += 1
+                if titleTapCount >= 5 {
+                  devModeEnabled.toggle()
+                  titleTapCount = 0
+                }
+              }
+            Image(systemName: "sparkles")
+              .symbolRenderingMode(.hierarchical)
+              .foregroundStyle(Color.accentColor)
+          }
 
-            Text("Daily unlimited crossword puzzles")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+          Text("Daily unlimited crossword puzzles")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
 
         Spacer()
@@ -169,6 +169,7 @@ struct HomeView: View {
 
             Button {
               AIWordService.shared.clearRecentWords()
+              persistence.clearSolvedWords()
             } label: {
               HStack {
                 Image(systemName: "trash")
@@ -179,7 +180,9 @@ struct HomeView: View {
             .buttonStyle(.bordered)
             .controlSize(.large)
             .tint(.orange)
-            .accessibilityHint("Clears the AI recent words history so previously used words can appear again.")
+            .accessibilityHint(
+              "Clears recent AI history and solved-puzzle word exclusions so previously used words can appear again."
+            )
           }
         }
         .padding(.horizontal, 32)
@@ -325,6 +328,9 @@ struct HomeView: View {
     puzzleVM = PuzzleViewModel(puzzle: puzzle, gameState: savedState)
     puzzleVM?.devMode = devModeEnabled
     navigateToPuzzle = true
+    Task {
+      await warmupService.warmNextUnlimitedPuzzle()
+    }
   }
 
   private func startNewUnlimitedPuzzle() {
@@ -332,9 +338,11 @@ struct HomeView: View {
     persistence.clearUnlimitedGameState()
     persistence.clearUnlimitedPuzzle()
 
-    startGenerating()
-
     Task {
+      let timeoutSeconds = await warmupService.unlimitedWarmupTimeoutSeconds()
+      await MainActor.run {
+        startGenerating(timeoutSeconds: timeoutSeconds)
+      }
       let puzzle = await warmupService.unlimitedPuzzle()
       let gameState = GameState(puzzleId: puzzle.id, isDaily: false, gridSize: puzzle.gridSize)
 
@@ -392,9 +400,9 @@ struct HomeView: View {
 
   // MARK: - Generating Phrases
 
-  private func startGenerating() {
+  private func startGenerating(timeoutSeconds: TimeInterval = AIWordService.aiTimeoutSeconds) {
     generatingPhraseIndex = Int.random(in: 0..<generatingPhrases.count)
-    countdownSeconds = Int(AIWordService.aiTimeoutSeconds)
+    countdownSeconds = Int(timeoutSeconds.rounded())
     isGenerating = true
     generatingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
       Task { @MainActor in

@@ -22,8 +22,8 @@ struct PuzzleWarmupServiceTests {
                 try? await Task.sleep(for: .milliseconds(50))
                 return state.loadNextDailyPuzzle()
             },
-            unlimitedGenerator: {
-                state.recordUnlimitedGeneration()
+            unlimitedGenerator: { timeoutSeconds in
+                state.recordUnlimitedGeneration(timeoutSeconds: timeoutSeconds)
                 return state.dequeueUnlimitedPuzzle()
             },
             hasUnlimitedInProgress: { state.loadHasUnlimitedInProgress() }
@@ -58,8 +58,8 @@ struct PuzzleWarmupServiceTests {
                 state.recordDailyGeneration()
                 return state.loadNextDailyPuzzle()
             },
-            unlimitedGenerator: {
-                state.recordUnlimitedGeneration()
+            unlimitedGenerator: { timeoutSeconds in
+                state.recordUnlimitedGeneration(timeoutSeconds: timeoutSeconds)
                 try? await Task.sleep(for: .milliseconds(20))
                 return state.dequeueUnlimitedPuzzle()
             },
@@ -73,10 +73,14 @@ struct PuzzleWarmupServiceTests {
         #expect(warmedPuzzle.id == firstPuzzle.id)
         #expect(freshPuzzle.id == secondPuzzle.id)
         #expect(state.unlimitedGenerationCount() == 2)
+        #expect(state.unlimitedGenerationTimeouts() == [
+            AIWordService.aiTimeoutSeconds,
+            PuzzleWarmupService.backgroundUnlimitedTimeoutSeconds,
+        ])
     }
 
-    @Test("Unlimited warmup skips background generation when a puzzle is already in progress")
-    func unlimitedWarmupSkipsWhenInProgressExists() async throws {
+    @Test("Unlimited warmup generates with the background timeout when one is already in progress")
+    func unlimitedWarmupGeneratesWithBackgroundTimeoutWhenInProgressExists() async throws {
         let state = WarmupTestState()
         state.setHasUnlimitedInProgress(true)
         state.setUnlimitedPuzzles([makeWarmupPuzzle(seed: 31)])
@@ -88,8 +92,8 @@ struct PuzzleWarmupServiceTests {
                 state.recordDailyGeneration()
                 return state.loadNextDailyPuzzle()
             },
-            unlimitedGenerator: {
-                state.recordUnlimitedGeneration()
+            unlimitedGenerator: { timeoutSeconds in
+                state.recordUnlimitedGeneration(timeoutSeconds: timeoutSeconds)
                 return state.dequeueUnlimitedPuzzle()
             },
             hasUnlimitedInProgress: { state.loadHasUnlimitedInProgress() }
@@ -98,7 +102,47 @@ struct PuzzleWarmupServiceTests {
         await service.startWarmup()
         try? await Task.sleep(for: .milliseconds(20))
 
-        #expect(state.unlimitedGenerationCount() == 0)
+        #expect(state.unlimitedGenerationCount() == 1)
+        #expect(state.unlimitedGenerationTimeouts() == [PuzzleWarmupService.backgroundUnlimitedTimeoutSeconds])
+    }
+
+    @Test("Unlimited puzzle generation warms the following puzzle in the background after serving the current puzzle")
+    func unlimitedPuzzleWarmsNextPuzzleAfterServingCurrentPuzzle() async {
+        let state = WarmupTestState()
+        let currentPuzzle = makeWarmupPuzzle(
+            seed: 41,
+            id: UUID(uuidString: "DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD")!
+        )
+        let nextPuzzle = makeWarmupPuzzle(
+            seed: 42,
+            id: UUID(uuidString: "EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE")!
+        )
+        state.setUnlimitedPuzzles([currentPuzzle, nextPuzzle])
+
+        let service = PuzzleWarmupService(
+            dailyIdentifier: { "2026-03-25" },
+            cachedDailyLoader: { _ in state.loadCachedDailyPuzzle() },
+            dailyGenerator: {
+                state.recordDailyGeneration()
+                return state.loadNextDailyPuzzle()
+            },
+            unlimitedGenerator: { timeoutSeconds in
+                state.recordUnlimitedGeneration(timeoutSeconds: timeoutSeconds)
+                try? await Task.sleep(for: .milliseconds(20))
+                return state.dequeueUnlimitedPuzzle()
+            },
+            hasUnlimitedInProgress: { state.loadHasUnlimitedInProgress() }
+        )
+
+        let servedPuzzle = await service.unlimitedPuzzle()
+        try? await Task.sleep(for: .milliseconds(40))
+
+        #expect(servedPuzzle.id == currentPuzzle.id)
+        #expect(state.unlimitedGenerationCount() == 2)
+        #expect(state.unlimitedGenerationTimeouts() == [
+            AIWordService.aiTimeoutSeconds,
+            PuzzleWarmupService.backgroundUnlimitedTimeoutSeconds,
+        ])
     }
 }
 
@@ -112,6 +156,7 @@ private final class WarmupTestState: @unchecked Sendable {
 
     private var dailyCalls = 0
     private var unlimitedCalls = 0
+    private var unlimitedTimeouts: [TimeInterval] = []
 
     func recordDailyGeneration() {
         lock.lock()
@@ -125,10 +170,11 @@ private final class WarmupTestState: @unchecked Sendable {
         nextDailyPuzzle = puzzle
     }
 
-    func recordUnlimitedGeneration() {
+    func recordUnlimitedGeneration(timeoutSeconds: TimeInterval) {
         lock.lock()
         defer { lock.unlock() }
         unlimitedCalls += 1
+        unlimitedTimeouts.append(timeoutSeconds)
     }
 
     func setUnlimitedPuzzles(_ puzzles: [PuzzleDefinition]) {
@@ -153,6 +199,12 @@ private final class WarmupTestState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return unlimitedCalls
+    }
+
+    func unlimitedGenerationTimeouts() -> [TimeInterval] {
+        lock.lock()
+        defer { lock.unlock() }
+        return unlimitedTimeouts
     }
 
     func loadCachedDailyPuzzle() -> PuzzleDefinition? {

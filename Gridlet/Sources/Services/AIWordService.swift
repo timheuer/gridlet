@@ -93,6 +93,7 @@ final class AIWordService: Sendable {
   private static let clueRewriteTimeoutSeconds: TimeInterval = 10
 
   private let fallbackService = WordListService.shared
+  private let persistence: PersistenceService
 
   // MARK: - Recent word tracking
 
@@ -108,6 +109,10 @@ final class AIWordService: Sendable {
     "SPARK", "CRANE", "GLOW", "LATTE", "BREEZE", "SNEAK",
   ]
 
+  init(persistence: PersistenceService = .shared) {
+    self.persistence = persistence
+  }
+
   /// Whether Apple Intelligence is available on this device.
   var isAvailable: Bool {
     SystemLanguageModel.default.availability == .available
@@ -118,7 +123,12 @@ final class AIWordService: Sendable {
   /// Makes multiple batch requests to accumulate enough entries.
   /// Falls back to bundled list if AI doesn't finish within the timeout.
   /// Returns the words along with generation diagnostics for developer mode.
-  func generateWordClues(count: Int, maxLength: Int, seed: UInt64) async -> GenerationResult {
+  func generateWordClues(
+    count: Int,
+    maxLength: Int,
+    seed: UInt64,
+    timeoutSeconds: TimeInterval = aiTimeoutSeconds
+  ) async -> GenerationResult {
     guard isAvailable else {
       logger.info("Apple Intelligence unavailable — using bundled fallback words")
       return GenerationResult(
@@ -129,13 +139,15 @@ final class AIWordService: Sendable {
       )
     }
 
+    let timeoutDescription = Int(timeoutSeconds.rounded())
+
     do {
       return try await withThrowingTaskGroup(of: GenerationResult.self) { group in
         group.addTask {
           try await self.generateWithAI(count: count, maxLength: maxLength, seed: seed)
         }
         group.addTask {
-          try await Task.sleep(for: .seconds(Self.aiTimeoutSeconds))
+          try await Task.sleep(for: .seconds(timeoutSeconds))
           throw AITimeoutError()
         }
 
@@ -153,16 +165,18 @@ final class AIWordService: Sendable {
       }
     } catch is AITimeoutError {
       logger.warning(
-        "AI generation timed out after \(Int(Self.aiTimeoutSeconds))s — trying AI clue rewrite on bundled words"
+        "AI generation timed out after \(timeoutDescription)s — trying AI clue rewrite on bundled words"
       )
       return await fallbackWithAIClues(
         count: count,
         maxLength: maxLength,
         seed: seed,
-        baseDetail: "AI generation timed out after \(Int(Self.aiTimeoutSeconds))s."
+        baseDetail: "AI generation timed out after \(timeoutDescription)s."
       )
     } catch {
-      logger.error("AI generation failed: \(error.localizedDescription) — trying AI clue rewrite on bundled words")
+      logger.error(
+        "AI generation failed: \(error.localizedDescription) — trying AI clue rewrite on bundled words"
+      )
       return await fallbackWithAIClues(
         count: count,
         maxLength: maxLength,
@@ -181,8 +195,10 @@ final class AIWordService: Sendable {
     -> GenerationResult
   {
     let recentWords = loadRecentWords()
+    let solvedWords = persistence.loadSolvedWords()
     let recentWordsSet = Set(recentWords)
-    let avoidBlock = makeAvoidBlock(from: recentWords)
+    let solvedWordsSet = Set(solvedWords)
+    let avoidBlock = makeAvoidBlock(from: solvedWords + recentWords)
     let instructions = makeInstructions(maxLength: maxLength, avoidBlock: avoidBlock)
 
     var allGenerated: [WordClue] = []
@@ -195,7 +211,7 @@ final class AIWordService: Sendable {
       // rounds does not accumulate and exhaust the model's context window.
       let session = LanguageModelSession(instructions: instructions)
 
-      let combinedAvoidWords = Array(seenWords.union(recentWordsSet)).sorted()
+      let combinedAvoidWords = Array(seenWords.union(recentWordsSet).union(solvedWordsSet)).sorted()
       let roundPrompt = makeRoundPrompt(
         round: round,
         maxLength: maxLength,
@@ -233,13 +249,19 @@ final class AIWordService: Sendable {
           return nil
         }
 
+        if solvedWordsSet.contains(word) {
+          logger.debug("Rejected '\(word)': already used in a solved puzzle")
+          return nil
+        }
+
         if seenWords.contains(word) {
           logger.debug("Rejected '\(word)': duplicate word in current run")
           return nil
         }
 
         if Self.clueContainsAnswerOrForm(clueWords, answerWord: word) {
-          logger.debug("Rejected '\(word)': clue '\(clue)' contains the answer word or a form of it")
+          logger.debug(
+            "Rejected '\(word)': clue '\(clue)' contains the answer word or a form of it")
           return nil
         }
 
@@ -292,7 +314,8 @@ final class AIWordService: Sendable {
         let needed = count - results.count
         let extra = fallbackWords(count: needed, maxLength: maxLength, seed: seed)
           .filter { !seenWords.contains($0.word) }
-        logger.info("Supplementing with \(extra.count) bundled words (had \(results.count)/\(count) from AI)")
+        logger.info(
+          "Supplementing with \(extra.count) bundled words (had \(results.count)/\(count) from AI)")
         results.append(contentsOf: extra)
       }
 
@@ -313,7 +336,8 @@ final class AIWordService: Sendable {
       count: count,
       maxLength: maxLength,
       seed: seed,
-      baseDetail: "Accepted \(allGenerated.count) validated AI entries; required at least \(minimumRequired) to use AI output."
+      baseDetail:
+        "Accepted \(allGenerated.count) validated AI entries; required at least \(minimumRequired) to use AI output."
     )
   }
 
@@ -322,16 +346,17 @@ final class AIWordService: Sendable {
   private func makeAvoidBlock(from recentWords: [String]) -> String {
     guard !recentWords.isEmpty else { return "" }
 
-    let avoid = recentWords
+    let avoid =
+      recentWords
       .suffix(promptAvoidWordsLimit)
       .joined(separator: ", ")
 
     return """
 
-    RECENTLY USED / OVERUSED WORDS
-    Avoid reusing these recently used or overused answers unless absolutely necessary:
-    \(avoid)
-    """
+      RECENTLY USED / OVERUSED WORDS
+      Avoid reusing these recently used or overused answers unless absolutely necessary:
+      \(avoid)
+      """
   }
 
   private func makeInstructions(maxLength: Int, avoidBlock: String) -> String {
@@ -449,49 +474,49 @@ final class AIWordService: Sendable {
     } else {
       avoidLine = """
 
-      Do NOT use any of these words:
-      \(avoidWords.joined(separator: ", "))
-      """
+        Do NOT use any of these words:
+        \(avoidWords.joined(separator: ", "))
+        """
     }
 
     if round == 0 {
       return """
-      Generate crossword word-clue pairs.
-      All words must be 3 to \(maxLength) letters long.
-      Include some 3-letter words.
+        Generate crossword word-clue pairs.
+        All words must be 3 to \(maxLength) letters long.
+        Include some 3-letter words.
 
-      Use clever modern mini-crossword-style clues.
-      Clues should be playful, natural, and sometimes indirect.
-      Prefer light misdirection, double meaning, figurative phrasing, or conversational tone.
-      Avoid plain dictionary definitions.
+        Use clever modern mini-crossword-style clues.
+        Clues should be playful, natural, and sometimes indirect.
+        Prefer light misdirection, double meaning, figurative phrasing, or conversational tone.
+        Avoid plain dictionary definitions.
 
-      At least one third of clues should use mild misdirection or double meaning.
+        At least one third of clues should use mild misdirection or double meaning.
 
-      Bias toward fresh, varied entries rather than default crossword favorites.
-      If multiple valid answers are possible, prefer the less predictable but still familiar option.
-      Spread entries across different categories such as actions, objects, food, weather, places, moods, animals, and everyday life.
-      Avoid clustering too many entries with similar imagery, tone, or letter patterns.
-      Avoid overused model-favorite words such as SPARK, CRANE, GLOW, LATTE, BREEZE, and SNEAK.\(avoidLine)
-      """
+        Bias toward fresh, varied entries rather than default crossword favorites.
+        If multiple valid answers are possible, prefer the less predictable but still familiar option.
+        Spread entries across different categories such as actions, objects, food, weather, places, moods, animals, and everyday life.
+        Avoid clustering too many entries with similar imagery, tone, or letter patterns.
+        Avoid overused model-favorite words such as SPARK, CRANE, GLOW, LATTE, BREEZE, and SNEAK.\(avoidLine)
+        """
     } else {
       return """
-      Generate more crossword word-clue pairs.
-      All words must be 3 to \(maxLength) letters long.
-      Include some 3-letter words.
+        Generate more crossword word-clue pairs.
+        All words must be 3 to \(maxLength) letters long.
+        Include some 3-letter words.
 
-      Use clever modern mini-crossword-style clues.
-      Clues should be playful, natural, and sometimes indirect.
-      Prefer light misdirection, double meaning, figurative phrasing, or conversational tone.
-      Avoid plain dictionary definitions.
+        Use clever modern mini-crossword-style clues.
+        Clues should be playful, natural, and sometimes indirect.
+        Prefer light misdirection, double meaning, figurative phrasing, or conversational tone.
+        Avoid plain dictionary definitions.
 
-      At least one third of clues should use mild misdirection or double meaning.
+        At least one third of clues should use mild misdirection or double meaning.
 
-      Bias toward fresh, varied entries rather than default crossword favorites.
-      If multiple valid answers are possible, prefer the less predictable but still familiar option.
-      Spread entries across different categories such as actions, objects, food, weather, places, moods, animals, and everyday life.
-      Avoid clustering too many entries with similar imagery, tone, or letter patterns.
-      Avoid overused model-favorite words such as SPARK, CRANE, GLOW, LATTE, BREEZE, and SNEAK.\(avoidLine)
-      """
+        Bias toward fresh, varied entries rather than default crossword favorites.
+        If multiple valid answers are possible, prefer the less predictable but still familiar option.
+        Spread entries across different categories such as actions, objects, food, weather, places, moods, animals, and everyday life.
+        Avoid clustering too many entries with similar imagery, tone, or letter patterns.
+        Avoid overused model-favorite words such as SPARK, CRANE, GLOW, LATTE, BREEZE, and SNEAK.\(avoidLine)
+        """
     }
   }
 
@@ -626,8 +651,10 @@ final class AIWordService: Sendable {
 
   /// Fallback: return words from the bundled wordlist.
   private func fallbackWords(count: Int, maxLength: Int, seed: UInt64) -> [WordClue] {
+    let solvedWords = Set(persistence.loadSolvedWords())
     let all = fallbackService.entries.filter {
       $0.word.count >= 3 && $0.word.count <= maxLength
+        && !solvedWords.contains($0.word.uppercased())
     }
     var rng = GKMersenneTwisterRandomSource(seed: seed)
     var shuffled = all
@@ -710,27 +737,27 @@ final class AIWordService: Sendable {
     let wordList = words.map { "\($0.word) — \($0.clue)" }.joined(separator: "\n")
 
     let instructions = """
-    You are an expert crossword clue writer. You will be given crossword answers paired with plain dictionary-style clues.
-    Rewrite each clue to be clever, playful, and crossword-worthy.
+      You are an expert crossword clue writer. You will be given crossword answers paired with plain dictionary-style clues.
+      Rewrite each clue to be clever, playful, and crossword-worthy.
 
-    RULES:
-    - Keep the exact same answer word (in UPPERCASE)
-    - Write a new clue that is 2-8 words long
-    - Clues must NOT contain the answer word or any form of it
-    - Prefer playful, indirect, figurative, conversational, or lightly witty clues
-    - Use mild misdirection, double meanings, or wordplay when possible
-    - Clues must read as complete natural phrases, never fragments
-    - Avoid plain dictionary definitions
-    - Return every word you are given — do not skip any
-    """
+      RULES:
+      - Keep the exact same answer word (in UPPERCASE)
+      - Write a new clue that is 2-8 words long
+      - Clues must NOT contain the answer word or any form of it
+      - Prefer playful, indirect, figurative, conversational, or lightly witty clues
+      - Use mild misdirection, double meanings, or wordplay when possible
+      - Clues must read as complete natural phrases, never fragments
+      - Avoid plain dictionary definitions
+      - Return every word you are given — do not skip any
+      """
 
     let session = LanguageModelSession(instructions: instructions)
 
     let prompt = """
-    Rewrite the clues for these crossword answers. Keep the same words, just make the clues more fun:
+      Rewrite the clues for these crossword answers. Keep the same words, just make the clues more fun:
 
-    \(wordList)
-    """
+      \(wordList)
+      """
 
     let response = try await session.respond(
       to: prompt,
@@ -755,7 +782,8 @@ final class AIWordService: Sendable {
       guard !Self.clueContainsAnswerOrForm(clueWords, answerWord: word) else { continue }
 
       // Check for incomplete clue endings
-      let lastWord = clue
+      let lastWord =
+        clue
         .components(separatedBy: .whitespacesAndNewlines)
         .last?
         .lowercased()
@@ -777,8 +805,8 @@ final class AIWordService: Sendable {
 
 // MARK: - Helpers
 
-private extension Array where Element: Hashable {
-  func removingDuplicatesPreservingOrder() -> [Element] {
+extension Array where Element: Hashable {
+  fileprivate func removingDuplicatesPreservingOrder() -> [Element] {
     var seen = Set<Element>()
     return filter { seen.insert($0).inserted }
   }
