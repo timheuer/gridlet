@@ -32,7 +32,7 @@ Crucigram is an offline-first iPhone word puzzle game built with SwiftUI (iOS 26
 |--------|-------|---------|
 | Models | `Gridlet/Sources/Models/` | `PuzzleDefinition`, `GameState`, `PlayerStats`, `WordEntry`, etc. |
 | Generator | `Gridlet/Sources/Generator/` | `CrosswordLayoutGenerator` — seeded crossword layout engine optimized for 5×5/6×6/7×7 grids |
-| Services | `Gridlet/Sources/Services/` | `PuzzleGeneratorService`, `DailyPuzzleService`, `AIWordService`, `WordListService`, `PersistenceService` |
+| Services | `Gridlet/Sources/Services/` | `PuzzleGeneratorService`, `DailyPuzzleService`, `PuzzleWarmupService`, `AIWordService`, `WordListService`, `PersistenceService` |
 | ViewModels | `Gridlet/Sources/ViewModels/` | `PuzzleViewModel`, `StatsViewModel` |
 | Views | `Gridlet/Sources/Views/` | `HomeView`, `PuzzleView`, `StatsView`, `SettingsView`, `OnboardingView`, `AcknowledgmentsView`, plus `Components/` |
 | Tests | `GridletTests/` | `ModelTests`, `GeneratorTests`, `GridDensityTests` |
@@ -46,6 +46,7 @@ Crucigram is an offline-first iPhone word puzzle game built with SwiftUI (iOS 26
 - **Fallback**: Bundled `Gridlet/Resources/wordlist.json` is used when Apple Intelligence is unavailable (older devices, simulator).
 - **Fallback with AI clues**: When AI word generation fails but Apple Intelligence is still available, the app uses bundled words but rewrites their clues with AI for a more playful crossword style (10s timeout).
 - The `PuzzleGeneratorService` exposes both `generate(seed:)` (sync, bundled list) and `generateWithAI(seed:)` (async, AI-powered) methods.
+- `PuzzleWarmupService` starts speculative Daily and Play generation from the home screen so taps can reuse an in-flight or completed puzzle.
 - To regenerate fallback wordlist: `pip install wordfreq wn && python3 scripts/generate_wordlist.py`
 
 ## Game Rules (Fixed — Do Not Change)

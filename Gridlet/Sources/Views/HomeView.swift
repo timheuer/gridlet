@@ -14,9 +14,8 @@ struct HomeView: View {
   @AppStorage("devModeEnabled") private var devModeEnabled = false
   @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
-  private let dailyService = DailyPuzzleService()
-  private let generator = PuzzleGeneratorService()
   private let persistence = PersistenceService.shared
+  private let warmupService = PuzzleWarmupService.shared
 
   private let generatingPhrases = [
     "Searching the dictionary…",
@@ -235,6 +234,9 @@ struct HomeView: View {
       }
       .onAppear {
         refreshStats()
+        Task(priority: .utility) {
+          await warmupService.startWarmup()
+        }
       }
       .fullScreenCover(isPresented: $showOnboarding) {
         OnboardingView()
@@ -275,7 +277,7 @@ struct HomeView: View {
     startGenerating()
 
     Task {
-      let puzzle = await dailyService.todaysPuzzle()
+      let puzzle = await warmupService.dailyPuzzle()
 
       let gameState: GameState
       if let saved = persistence.loadDailyGameState(), saved.puzzleId == puzzle.id {
@@ -330,11 +332,10 @@ struct HomeView: View {
     persistence.clearUnlimitedGameState()
     persistence.clearUnlimitedPuzzle()
 
-    let seed = UInt64.random(in: 0...UInt64.max)
     startGenerating()
 
     Task {
-      let puzzle = await generator.generateWithAI(seed: seed)
+      let puzzle = await warmupService.unlimitedPuzzle()
       let gameState = GameState(puzzleId: puzzle.id, isDaily: false, gridSize: puzzle.gridSize)
 
       // Save puzzle so we can resume later
@@ -354,6 +355,9 @@ struct HomeView: View {
   private func handlePuzzleReturn() {
     guard let vm = puzzleVM, vm.isCompleted else {
       refreshStats()
+      Task {
+        await warmupService.startWarmup()
+      }
       return
     }
 
@@ -376,6 +380,9 @@ struct HomeView: View {
 
     try? persistence.savePlayerStats(stats)
     puzzleVM = nil
+    Task {
+      await warmupService.startWarmup()
+    }
   }
 
   private func refreshStats() {

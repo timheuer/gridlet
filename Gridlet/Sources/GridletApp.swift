@@ -22,6 +22,9 @@ struct GridletApp: App {
             case .active:
                 // Cancel any pending reminder — the user is in the app.
                 NotificationService.shared.cancelDailyReminder()
+                Task {
+                    await PuzzleWarmupService.shared.startWarmup()
+                }
             default:
                 break
             }
