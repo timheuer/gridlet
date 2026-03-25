@@ -238,8 +238,8 @@ final class AIWordService: Sendable {
           return nil
         }
 
-        if clueWords.contains(word) {
-          logger.debug("Rejected '\(word)': clue '\(clue)' contains the answer word")
+        if Self.clueContainsAnswerOrForm(clueWords, answerWord: word) {
+          logger.debug("Rejected '\(word)': clue '\(clue)' contains the answer word or a form of it")
           return nil
         }
 
@@ -497,6 +497,63 @@ final class AIWordService: Sendable {
 
   // MARK: - Scoring / weighting
 
+  /// Returns true if the clue contains the answer word or any common morphological form of it
+  /// (e.g. plurals, past tense, progressive, agent nouns). Generates explicit inflected forms
+  /// to catch violations like "skates" for the answer "SKATE" or "skiing" for "SKI".
+  ///
+  /// Limitations: irregular inflections (go→went) and consonant-doubling forms
+  /// (stop→stopped, plan→planned, run→running) are not generated. These are uncommon
+  /// enough that the AI prompt instruction acts as the primary guard; this check is a
+  /// safety net for the most common regular inflections.
+  ///
+  /// Words shorter than 3 letters are checked by exact match only; the crossword engine
+  /// enforces a 3-letter minimum for answers so this guard is intentionally conservative.
+  static func clueContainsAnswerOrForm(_ clueWords: Set<String>, answerWord: String) -> Bool {
+    if clueWords.contains(answerWord) { return true }
+    guard answerWord.count >= 3 else { return false }
+
+    var forms: Set<String> = []
+
+    // Plural / 3rd-person singular.
+    // Any word ending in a sibilant (s, x, z, sh, ch) takes +ES rather than +S, per
+    // standard English: GAS→GASES, BUS→BUSES, GLASS→GLASSES, MATCH→MATCHES, etc.
+    // hasSuffix("S") matches both single-S endings (GAS, BUS) and double-S (GLASS, AMASS).
+    // All other words take plain +S: SKATE→SKATES, PLAY→PLAYS, SKI→SKIS.
+    let esSuffixes = ["S", "X", "Z", "SH", "CH"]
+    if esSuffixes.contains(where: { answerWord.hasSuffix($0) }) {
+      forms.insert(answerWord + "ES")
+    } else {
+      forms.insert(answerWord + "S")
+    }
+
+    if answerWord.hasSuffix("E") {
+      let stem = String(answerWord.dropLast())
+      // Past tense: SKATE→SKATED, LOVE→LOVED
+      forms.insert(stem + "ED")
+      // Progressive (E-drop): SKATE→SKATING, LOVE→LOVING
+      forms.insert(stem + "ING")
+      // Agent noun (E-drop): SKATE→SKATER/SKATERS, LOVE→LOVER/LOVERS
+      forms.insert(stem + "ER")
+      forms.insert(stem + "ERS")
+    } else {
+      // Past tense: PLAY→PLAYED, SKI→SKIED
+      forms.insert(answerWord + "ED")
+      // Progressive: PLAY→PLAYING, SKI→SKIING
+      forms.insert(answerWord + "ING")
+      // Agent noun: PLAY→PLAYER/PLAYERS, SKI→SKIER/SKIERS
+      forms.insert(answerWord + "ER")
+      forms.insert(answerWord + "ERS")
+    }
+
+    // Adverb: QUICK→QUICKLY, SMART→SMARTLY.
+    // Skip if the answer word already ends in LY to avoid QUICKLYLY etc.
+    if !answerWord.hasSuffix("LY") {
+      forms.insert(answerWord + "LY")
+    }
+
+    return !clueWords.isDisjoint(with: forms)
+  }
+
   private func scoreCandidate(
     word: String,
     clue: String,
@@ -695,7 +752,7 @@ final class AIWordService: Sendable {
           .map { $0.trimmingCharacters(in: .punctuationCharacters) }
           .filter { !$0.isEmpty }
       )
-      guard !clueWords.contains(word) else { continue }
+      guard !Self.clueContainsAnswerOrForm(clueWords, answerWord: word) else { continue }
 
       // Check for incomplete clue endings
       let lastWord = clue

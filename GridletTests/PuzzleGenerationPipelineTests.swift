@@ -180,9 +180,13 @@ struct PuzzleGenerationPipelineTests {
                     word.clue.uppercased()
                         .components(separatedBy: .whitespaces)
                         .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+                        .filter { !$0.isEmpty }
                 )
-                #expect(!clueWords.contains(word.text.uppercased()),
-                        "Word '\(word.text)' has clue '\(word.clue)' containing the answer")
+                let answerWord = word.text.uppercased()
+                #expect(
+                    !AIWordService.clueContainsAnswerOrForm(clueWords, answerWord: answerWord),
+                    "Word '\(word.text)' has clue '\(word.clue)' containing the answer or a form of it"
+                )
             }
         }
     }
