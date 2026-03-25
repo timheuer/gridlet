@@ -9,7 +9,7 @@ final class PuzzleViewModel {
   var devMode = false
   var showSolution = false
 
-  private let persistence = PersistenceService.shared
+  private let persistence: PersistenceService
 
   /// The number and direction label for the active clue (e.g. "1→" or "3↓").
   var activeClueLabel: String {
@@ -66,6 +66,13 @@ final class PuzzleViewModel {
   var showIncorrectMessage = false
 
   init(puzzle: PuzzleDefinition, gameState: GameState) {
+    self.persistence = PersistenceService.shared
+    self.puzzle = puzzle
+    self.gameState = gameState
+  }
+
+  init(puzzle: PuzzleDefinition, gameState: GameState, persistence: PersistenceService) {
+    self.persistence = persistence
     self.puzzle = puzzle
     self.gameState = gameState
   }
@@ -105,7 +112,9 @@ final class PuzzleViewModel {
 
     // Track whether we're filling the last empty cell (first-time completion of word)
     let wasEmpty = gameState.playerGrid[row][col] == nil
-    let emptyCellsBefore = activeWordCells.count(where: { gameState.playerGrid[$0.row][$0.col] == nil })
+    let emptyCellsBefore = activeWordCells.count(where: {
+      gameState.playerGrid[$0.row][$0.col] == nil
+    })
 
     gameState.playerGrid[row][col] = letter
 
@@ -460,6 +469,12 @@ final class PuzzleViewModel {
     // All correct!
     gameState.isCompleted = true
     gameState.completedAt = Date()
+
+    do {
+      try persistence.appendSolvedWords(puzzle.words.map(\.text))
+    } catch {
+      // Silent fail — solved word exclusion is best-effort
+    }
   }
 
   private func save() {
