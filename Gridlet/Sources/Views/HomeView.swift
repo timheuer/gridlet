@@ -337,7 +337,9 @@ struct HomeView: View {
 
     Task {
       let timeoutSeconds = await warmupService.unlimitedWarmupTimeoutSeconds()
-      startGenerating(timeoutSeconds: timeoutSeconds)
+      await MainActor.run {
+        startGenerating(timeoutSeconds: timeoutSeconds)
+      }
       let puzzle = await warmupService.unlimitedPuzzle()
       let gameState = GameState(puzzleId: puzzle.id, isDaily: false, gridSize: puzzle.gridSize)
 
