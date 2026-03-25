@@ -79,8 +79,8 @@ struct PuzzleWarmupServiceTests {
         ])
     }
 
-    @Test("Unlimited warmup keeps generating the next puzzle while one is already in progress")
-    func unlimitedWarmupContinuesWhenInProgressExists() async throws {
+    @Test("Unlimited warmup generates with the background timeout when one is already in progress")
+    func unlimitedWarmupGeneratesWithBackgroundTimeoutWhenInProgressExists() async throws {
         let state = WarmupTestState()
         state.setHasUnlimitedInProgress(true)
         state.setUnlimitedPuzzles([makeWarmupPuzzle(seed: 31)])
@@ -106,7 +106,7 @@ struct PuzzleWarmupServiceTests {
         #expect(state.unlimitedGenerationTimeouts() == [PuzzleWarmupService.backgroundUnlimitedTimeoutSeconds])
     }
 
-    @Test("Unlimited puzzle generation immediately warms the following puzzle in the background")
+    @Test("Unlimited puzzle generation warms the following puzzle in the background after serving the current puzzle")
     func unlimitedPuzzleWarmsNextPuzzleAfterServingCurrentPuzzle() async {
         let state = WarmupTestState()
         let currentPuzzle = makeWarmupPuzzle(

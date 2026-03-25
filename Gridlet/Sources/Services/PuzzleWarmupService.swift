@@ -101,10 +101,11 @@ actor PuzzleWarmupService {
     private func warmUnlimitedPuzzleIfNeeded(forceBackground: Bool = false) {
         guard unlimitedTask == nil else { return }
 
-        let timeoutSeconds =
-            (forceBackground || hasUnlimitedInProgress())
+        let timeoutSeconds = forceBackground
             ? Self.backgroundUnlimitedTimeoutSeconds
-            : AIWordService.aiTimeoutSeconds
+            : (hasUnlimitedInProgress()
+                ? Self.backgroundUnlimitedTimeoutSeconds
+                : AIWordService.aiTimeoutSeconds)
         unlimitedTaskTimeoutSeconds = timeoutSeconds
         unlimitedTask = Task { await unlimitedGenerator(timeoutSeconds) }
     }
