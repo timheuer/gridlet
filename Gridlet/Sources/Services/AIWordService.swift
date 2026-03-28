@@ -387,6 +387,7 @@ final class AIWordService: Sendable {
     - Words must be UPPERCASE letters only (A-Z)
     - No proper nouns
     - No offensive words
+    - Avoid unsafe roots and obvious inflected/derived forms, including violence, sex, slurs, profanity, and abuse terms (for example: RAPE, RAPED, RAPING, RAPIST, FUCK, FUCKED, FUCKING, KILL, KILLER, KILLING, SEX, SEXUAL)
     - No slang-heavy or overly obscure terms
     - All words must be unique within the batch
 
