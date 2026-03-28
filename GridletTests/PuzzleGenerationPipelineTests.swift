@@ -22,6 +22,30 @@ struct PuzzleGenerationPipelineTests {
         #expect(!puzzle.isAIGenerated, "Bundled generation should not be marked as AI")
     }
 
+    @Test("Blocked words and sensitive variants are rejected")
+    func blockedWordVariantsRejected() {
+        for blocked in [
+            "RAPE", "RAPED", "RAPING", "RAPIST",
+            "FUCKING", "KILLER", "SEXUAL", "DYING",
+            "BOMBER", "GUNS", "NAZIS", "DAMNED",
+        ] {
+            #expect(WordSafetyFilter.isBlocked(blocked), "\(blocked) should be blocked")
+        }
+
+        for allowed in ["GRAPE", "GRASS", "RAPID", "CLASS", "CLASSIC", "ASSESS", "GUNNER", "SEXTET"] {
+            #expect(!WordSafetyFilter.isBlocked(allowed), "\(allowed) should remain allowed")
+        }
+    }
+
+    @Test("Bundled candidate list excludes blocked variants")
+    func bundledCandidateListExcludesBlockedVariants() {
+        let words = Set(WordListService.shared.words(maxLength: 7))
+        #expect(!words.contains("RAPED"))
+        #expect(!words.contains("FUCKING"))
+        #expect(!words.contains("SEXUAL"))
+        #expect(words.contains("RAPID"))
+    }
+
     @Test("Bundled generation is deterministic across same seed")
     func bundledDeterministic() {
         let service = PuzzleGeneratorService()
