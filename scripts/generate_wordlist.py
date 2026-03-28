@@ -96,6 +96,7 @@ PROPER_NOUN_INDICATORS = [
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+# Keep these blocked-word rules in sync with Gridlet/Sources/Services/WordSafetyFilter.swift.
 def is_valid_word(word: str, wordnet_en=None) -> bool:
     """Check if a word is suitable for crossword use."""
     w = word.lower()
@@ -132,10 +133,11 @@ def is_blocked_or_variant(word: str) -> bool:
 
 def variant_forms(root: str) -> set[str]:
     forms = {root}
+    ends_with_ie = root.endswith('ie')
 
     if root.endswith('e'):
         stem = root[:-1]
-        if root.endswith('ie'):
+        if ends_with_ie:
             progressive = root[:-2] + 'ying'
         else:
             progressive = stem + 'ing'

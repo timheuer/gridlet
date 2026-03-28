@@ -24,7 +24,11 @@ struct PuzzleGenerationPipelineTests {
 
     @Test("Blocked words and sensitive variants are rejected")
     func blockedWordVariantsRejected() {
-        for blocked in ["RAPE", "RAPED", "RAPING", "RAPIST", "FUCKING", "KILLER", "SEXUAL", "DYING"] {
+        for blocked in [
+            "RAPE", "RAPED", "RAPING", "RAPIST",
+            "FUCKING", "KILLER", "SEXUAL", "DYING",
+            "BOMBER", "GUNS", "NAZIS", "DAMNED",
+        ] {
             #expect(WordSafetyFilter.isBlocked(blocked), "\(blocked) should be blocked")
         }
 

@@ -1,5 +1,6 @@
 import Foundation
 
+// Keep this filter in sync with scripts/generate_wordlist.py.
 enum WordSafetyFilter {
   private static let blockedWords: Set<String> = [
     // Offensive / unsafe
@@ -55,12 +56,13 @@ enum WordSafetyFilter {
 
   private static func variantForms(for root: String) -> Set<String> {
     var forms: Set<String> = [root]
+    let endsWithIE = root.hasSuffix("ie")
 
     if root.hasSuffix("e") {
       let stem = String(root.dropLast())
       forms.insert(root + "d")
       let progressive: String
-      if root.hasSuffix("ie") {
+      if endsWithIE {
         progressive = String(root.dropLast(2)) + "ying"
       } else {
         progressive = stem + "ing"
