@@ -35,7 +35,7 @@ final class WordListService: Sendable {
     func words(maxLength: Int) -> [String] {
         entries
             .map { $0.word.uppercased() }
-            .filter { $0.count >= 3 && $0.count <= maxLength }
+            .filter { $0.count >= 3 && $0.count <= maxLength && !WordSafetyFilter.isBlocked($0) }
     }
 
     /// Look up the clue for a word.

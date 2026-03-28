@@ -56,6 +56,24 @@ BLOCKLIST = {
     "texas", "paris", "london", "york", "roman",
 }
 
+# Only generate variants for safety-sensitive roots. Keeping this narrower than
+# BLOCKLIST avoids over-blocking benign fill such as CANS from the exact
+# blocklisted function word CAN.
+SENSITIVE_VARIANT_ROOTS = {
+    "ass", "damn", "hell", "crap", "slut", "whore", "bitch", "dick", "cock",
+    "shit", "fuck", "piss", "tit", "cum", "porn", "anus", "rape",
+    "nazi", "aids", "die", "kill", "dead", "death", "drug",
+    "gun", "bomb", "slave", "satan", "sex",
+}
+
+IRREGULAR_VARIANTS = {
+    "rape": {"rapist", "rapists"},
+    "die": {"dying"},
+    "dead": {"deadly"},
+    "kill": {"killer", "killers", "killing"},
+    "sex": {"sexual", "sexist"},
+}
+
 # Keywords in WordNet definitions that indicate proper nouns / named entities
 PROPER_NOUN_INDICATORS = [
     "capital of", "city in", "city on", "town in", "town on",
@@ -81,6 +99,7 @@ PROPER_NOUN_INDICATORS = [
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+# Keep these blocked-word rules in sync with Gridlet/Sources/Services/WordSafetyFilter.swift.
 def is_valid_word(word: str, wordnet_en=None) -> bool:
     """Check if a word is suitable for crossword use."""
     w = word.lower()
@@ -88,7 +107,7 @@ def is_valid_word(word: str, wordnet_en=None) -> bool:
         return False
     if not re.match(r'^[a-z]+$', w):
         return False  # no hyphens, spaces, apostrophes
-    if w in BLOCKLIST:
+    if is_blocked_or_variant(w):
         return False
     # If WordNet is available, reject words that ONLY have proper noun senses
     if wordnet_en:
@@ -101,6 +120,68 @@ def is_valid_word(word: str, wordnet_en=None) -> bool:
             if all_proper:
                 return False
     return True
+
+
+def is_blocked_or_variant(word: str) -> bool:
+    w = word.lower()
+    if w in BLOCKLIST:
+        return True
+
+    for root in SENSITIVE_VARIANT_ROOTS:
+        if w in variant_forms(root) or w in IRREGULAR_VARIANTS.get(root, set()):
+            return True
+
+    return False
+
+
+def variant_forms(root: str) -> set[str]:
+    """Generate common safety-focused variants for blocked roots.
+
+    Handles regular plurals, -ed/-ing verb forms, and simple agent nouns.
+    Roots ending in -ie switch to -ying (die -> dying).
+    """
+    forms = {root}
+    ends_with_ie = root.endswith('ie')
+
+    if root.endswith('e'):
+        stem = root[:-1]
+        if ends_with_ie:
+            progressive = root[:-2] + 'ying'
+        else:
+            progressive = stem + 'ing'
+        forms.update({
+            root + 'd',
+            progressive,
+            stem + 'er',
+            stem + 'ers',
+            root + 's',
+        })
+    else:
+        plural = plural_form(root)
+        forms.update({
+            plural,
+            root + 'ed',
+            root + 'ing',
+            root + 'er',
+            root + 'ers',
+        })
+
+    return forms
+
+
+def plural_form(root: str) -> str:
+    """Pluralize a blocked root for runtime/script safety checks.
+
+    Appending "zes" to a single-z root naturally yields the doubled-z
+    spelling (quiz -> quizzes).
+    """
+    if root.endswith('z') and not root.endswith('zz'):
+        return root + 'zes'
+    return root + 'es' if needs_es_plural(root) else root + 's'
+
+
+def needs_es_plural(root: str) -> bool:
+    return root.endswith(('s', 'x', 'z', 'sh', 'ch'))
 
 
 def clean_definition(definition: str) -> str:

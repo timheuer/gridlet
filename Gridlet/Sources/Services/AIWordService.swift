@@ -144,7 +144,7 @@ final class AIWordService: Sendable {
     do {
       return try await withThrowingTaskGroup(of: GenerationResult.self) { group in
         group.addTask {
-          try await self.generateWithAI(count: count, maxLength: maxLength, seed: seed)
+          await self.generateWithAI(count: count, maxLength: maxLength, seed: seed)
         }
         group.addTask {
           try await Task.sleep(for: .seconds(timeoutSeconds))
@@ -193,7 +193,7 @@ final class AIWordService: Sendable {
   /// The actual AI generation logic, extracted so it can be raced against a timeout.
   /// All batch rounds are launched concurrently so their inference runs in parallel,
   /// delivering roughly the latency of a single round instead of batchRounds × latency.
-  private func generateWithAI(count: Int, maxLength: Int, seed: UInt64) async throws
+  private func generateWithAI(count: Int, maxLength: Int, seed: UInt64) async
     -> GenerationResult
   {
     let recentWords = loadRecentWords()
@@ -214,38 +214,48 @@ final class AIWordService: Sendable {
     var allGenerated: [WordClue] = []
     var seenWords: Set<String> = []
 
-    // Launch all batch rounds concurrently. Collect validated results as each round
-    // finishes and cancel the remaining rounds once we have enough words.
-    try await withThrowingTaskGroup(of: [WordClue].self) { group in
+    // Launch all batch rounds concurrently. Use a non-throwing TaskGroup so that
+    // CancellationErrors from cancelled in-flight rounds (after early exit) do not
+    // propagate up and trigger the fallback path unnecessarily.
+    await withTaskGroup(of: [WordClue].self) { group in
       for round in 0..<Self.batchRounds {
         group.addTask {
-          try Task.checkCancellation()
+          do {
+            try Task.checkCancellation()
 
-          // Create a fresh session per round so context windows remain independent.
-          let session = LanguageModelSession(instructions: instructions)
-          let roundPrompt = self.makeRoundPrompt(
-            round: round,
-            maxLength: maxLength,
-            avoidWords: baseAvoidWords
-          )
-          let response = try await session.respond(
-            to: roundPrompt,
-            generating: WordClueBatch.self
-          )
-          let validated = self.validateBatchEntries(
-            response.content.entries,
-            maxLength: maxLength,
-            recentWordsSet: recentWordsSet,
-            solvedWordsSet: solvedWordsSet
-          )
-          logger.info(
-            "Round \(round + 1)/\(Self.batchRounds): AI returned \(response.content.entries.count) entries, \(validated.count) passed validation"
-          )
-          return validated
+            // Create a fresh session per round so context windows remain independent.
+            let session = LanguageModelSession(instructions: instructions)
+            let roundPrompt = self.makeRoundPrompt(
+              round: round,
+              maxLength: maxLength,
+              avoidWords: baseAvoidWords
+            )
+            let response = try await session.respond(
+              to: roundPrompt,
+              generating: WordClueBatch.self
+            )
+            let validated = self.validateBatchEntries(
+              response.content.entries,
+              maxLength: maxLength,
+              recentWordsSet: recentWordsSet,
+              solvedWordsSet: solvedWordsSet
+            )
+            logger.info(
+              "Round \(round + 1)/\(Self.batchRounds): AI returned \(response.content.entries.count) entries, \(validated.count) passed validation"
+            )
+            return validated
+          } catch {
+            // Cancellation (early exit after enough words) or inference failure:
+            // return empty rather than propagating so other rounds can still contribute.
+            if !(error is CancellationError) {
+              logger.warning("Round \(round + 1) failed: \(error.localizedDescription)")
+            }
+            return []
+          }
         }
       }
 
-      for try await roundWords in group {
+      for await roundWords in group {
         for word in roundWords {
           if !seenWords.contains(word.word) {
             seenWords.insert(word.word)
@@ -330,6 +340,11 @@ final class AIWordService: Sendable {
 
       if !word.allSatisfy({ $0.isLetter && $0.isASCII }) {
         logger.debug("Rejected '\(word)': contains non-ASCII or non-letter characters")
+        return nil
+      }
+
+      if WordSafetyFilter.isBlocked(word) {
+        logger.debug("Rejected '\(word)': blocked by safety filter")
         return nil
       }
 
@@ -419,6 +434,7 @@ final class AIWordService: Sendable {
     - Words must be UPPERCASE letters only (A-Z)
     - No proper nouns
     - No offensive words
+    - Avoid unsafe roots and obvious inflected/derived forms, including violence, sex, slurs, profanity, and abuse terms (for example: RAPE, RAPED, RAPING, RAPIST, FUCK, FUCKED, FUCKING, KILL, KILLER, KILLING, SEX, SEXUAL)
     - No slang-heavy or overly obscure terms
     - All words must be unique within the batch
 
@@ -677,6 +693,7 @@ final class AIWordService: Sendable {
     let solvedWords = Set(persistence.loadSolvedWords())
     let all = fallbackService.entries.filter {
       $0.word.count >= 3 && $0.word.count <= maxLength
+        && !WordSafetyFilter.isBlocked($0.word)
         && !solvedWords.contains($0.word.uppercased())
     }
     var rng = GKMersenneTwisterRandomSource(seed: seed)
