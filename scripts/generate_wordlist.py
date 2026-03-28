@@ -172,8 +172,8 @@ def variant_forms(root: str) -> set[str]:
 def plural_form(root: str) -> str:
     """Pluralize a blocked root for runtime/script safety checks.
 
-    Single-z roots append "zes" (quiz -> quizzes), which results in the
-    doubled-z spelling.
+    Appending "zes" to a single-z root naturally yields the doubled-z
+    spelling (quiz -> quizzes).
     """
     if root.endswith('z') and not root.endswith('zz'):
         return root + 'zes'

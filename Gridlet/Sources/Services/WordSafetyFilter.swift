@@ -88,8 +88,8 @@ enum WordSafetyFilter {
     return forms
   }
 
-  /// Forms plurals for roots that need runtime safety matching. Single-z roots append
-  /// "zes" (QUIZ -> QUIZZES), which results in the doubled-z spelling.
+  /// Forms plurals for roots that need runtime safety matching. Appending "zes" to
+  /// a single-z root naturally yields the doubled-z spelling (QUIZ -> QUIZZES).
   private static func pluralForm(for root: String) -> String {
     if root.hasSuffix("z") && !root.hasSuffix("zz") {
       return root + "zes"
