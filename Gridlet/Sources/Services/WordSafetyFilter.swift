@@ -59,11 +59,13 @@ enum WordSafetyFilter {
     if root.hasSuffix("e") {
       let stem = String(root.dropLast())
       forms.insert(root + "d")
+      let progressive: String
       if root.hasSuffix("ie") {
-        forms.insert(String(root.dropLast(2)) + "ying")
+        progressive = String(root.dropLast(2)) + "ying"
       } else {
-        forms.insert(stem + "ing")
+        progressive = stem + "ing"
       }
+      forms.insert(progressive)
       forms.insert(stem + "er")
       forms.insert(stem + "ers")
       forms.insert(root + "s")

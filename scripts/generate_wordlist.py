@@ -135,7 +135,10 @@ def variant_forms(root: str) -> set[str]:
 
     if root.endswith('e'):
         stem = root[:-1]
-        progressive = root[:-2] + 'ying' if root.endswith('ie') else stem + 'ing'
+        if root.endswith('ie'):
+            progressive = root[:-2] + 'ying'
+        else:
+            progressive = stem + 'ing'
         forms.update({
             root + 'd',
             progressive,
