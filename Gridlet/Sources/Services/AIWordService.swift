@@ -216,7 +216,7 @@ final class AIWordService: Sendable {
 
     // Launch all batch rounds concurrently. Collect validated results as each round
     // finishes and cancel the remaining rounds once we have enough words.
-    try await withThrowingTaskGroup(of: (Int, [WordClue]).self) { group in
+    try await withThrowingTaskGroup(of: [WordClue].self) { group in
       for round in 0..<Self.batchRounds {
         group.addTask {
           try Task.checkCancellation()
@@ -241,15 +241,17 @@ final class AIWordService: Sendable {
           logger.info(
             "Round \(round + 1)/\(Self.batchRounds): AI returned \(response.content.entries.count) entries, \(validated.count) passed validation"
           )
-          return (round, validated)
+          return validated
         }
       }
 
-      for try await (_, roundWords) in group {
+      for try await roundWords in group {
         for word in roundWords {
           if !seenWords.contains(word.word) {
             seenWords.insert(word.word)
             allGenerated.append(word)
+          } else {
+            logger.debug("Skipping cross-round duplicate '\(word.word)'")
           }
         }
         if allGenerated.count >= count {
