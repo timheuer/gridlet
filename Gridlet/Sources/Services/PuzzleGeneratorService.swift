@@ -52,20 +52,24 @@ final class PuzzleGeneratorService: @unchecked Sendable {
   /// Falls back to bundled list if AI is unavailable.
   func generateWithAI(
     seed: UInt64,
-    timeoutSeconds: TimeInterval = AIWordService.aiTimeoutSeconds
+    timeoutSeconds: TimeInterval = AIWordService.aiTimeoutSeconds,
+    excludedWords: Set<String> = []
   ) async -> PuzzleDefinition {
     let rng = GKMersenneTwisterRandomSource(seed: seed)
     let roll = rng.nextInt(upperBound: 20)
     // ~10% 5×5, ~45% 6×6, ~45% 7×7
     let gridSize: GridSize = roll < 2 ? .five : roll < 11 ? .six : .seven
     let dim = gridSize.dimension
+    let candidateCount = 24
+    let generationTimeout = max(timeoutSeconds, AIWordService.timeoutSeconds(for: gridSize))
 
     // Get AI-generated words and diagnostics
     let generationResult = await aiWordService.generateWordClues(
-      count: 30,
+      count: candidateCount,
       maxLength: dim,
       seed: seed,
-      timeoutSeconds: timeoutSeconds
+      timeoutSeconds: generationTimeout,
+      excludedWords: excludedWords
     )
     let wordClues = generationResult.words
     let aiGeneratedWords = generationResult.aiGeneratedWords
@@ -80,6 +84,7 @@ final class PuzzleGeneratorService: @unchecked Sendable {
       words,
       seed: seed,
       gridSize: gridSize,
+      excludedWords: excludedWords,
       aiGenerationStatus: generationResult.status,
       aiGenerationDetail: generationResult.detail,
       clueLookup: { word in
@@ -102,6 +107,7 @@ final class PuzzleGeneratorService: @unchecked Sendable {
     _ words: [String],
     seed: UInt64,
     gridSize: GridSize,
+    excludedWords: Set<String> = [],
     aiGenerationStatus: AIGenerationStatus = .fallbackReasonUnknown,
     aiGenerationDetail: String? = nil,
     clueLookup: ((String) -> (String, WordSource))? = nil,
@@ -110,28 +116,30 @@ final class PuzzleGeneratorService: @unchecked Sendable {
     let dim = gridSize.dimension
     let lookup = clueLookup ?? { (self.wordListService.clue(for: $0), .bundled) }
     let minWords = minimumWords(for: gridSize)
+    let filteredWords = words.filter { !excludedWords.contains($0.uppercased()) }
 
     let result = runLayoutAttempts(
-      words: words, seed: seed, dim: dim, minWords: minWords, preferredWords: aiWords)
+      words: filteredWords, seed: seed, dim: dim, minWords: minWords, preferredWords: aiWords)
     logger.info(
-      "Layout attempt: placed \(result.placed.count)/\(minWords) required words from \(words.count) candidates"
+      "Layout attempt: placed \(result.placed.count)/\(minWords) required words from \(filteredWords.count) candidates"
     )
 
     // If we fell short of the minimum, supplement with a limited number of
     // bundled words and retry — keeping AI words at the front for layout priority.
     if result.placed.count < minWords {
-      let existingWords = Set(words.map { $0.uppercased() })
+      let existingWords = Set(filteredWords.map { $0.uppercased() })
       let solvedWords = excludedSolvedWords()
       let extra = wordListService.words(maxLength: dim)
         .filter {
           let uppercased = $0.uppercased()
           return !existingWords.contains(uppercased) && !solvedWords.contains(uppercased)
+            && !excludedWords.contains(uppercased)
         }
       var extraShuffled = Array(extra)
       var supplementRng = GKMersenneTwisterRandomSource(seed: seed)
       extraShuffled.shuffle(using: &supplementRng)
       let supplementWords = Array(extraShuffled.prefix(60))
-      let combined = words + supplementWords
+      let combined = filteredWords + supplementWords
       logger.info(
         "Layout supplement: adding \(supplementWords.count) bundled words for retry (\(combined.count) total)"
       )

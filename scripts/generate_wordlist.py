@@ -184,8 +184,13 @@ def needs_es_plural(root: str) -> bool:
     return root.endswith(('s', 'x', 'z', 'sh', 'ch'))
 
 
-def clean_definition(definition: str) -> str:
-    """Trim a WordNet definition into a concise crossword-style clue."""
+def clean_definition(definition: str) -> Optional[str]:
+    """Trim a WordNet definition into a concise crossword-style clue.
+
+    Returns None if the definition cannot be cleanly truncated into a
+    complete phrase (avoids mid-sentence fragments like
+    "United Nations agency to promote trade by increasing").
+    """
     # Remove parenthetical remarks
     clue = re.sub(r'\([^)]*\)', '', definition)
     # Remove quotes
@@ -209,17 +214,43 @@ def clean_definition(definition: str) -> str:
     # Truncate to MAX_CLUE_WORDS but only at a natural word boundary
     # (avoid cutting after articles, prepositions, conjunctions)
     words = clue.split()
+    was_truncated = False
     if len(words) > MAX_CLUE_WORDS:
-        stop_words = {'a','an','the','of','to','in','for','on','at','by','or','and',
+        was_truncated = True
+        trailing_words = {'a','an','the','of','to','in','for','on','at','by','or','and',
                        'with','as','from','that','is','it','its','into','not','be',
-                       'no','so','if','than','but','up','out','some','how'}
+                       'no','so','if','than','but','up','out','some','how',
+                       'between','about','through','under','over','after','before',
+                       'without','within','upon','toward','towards','against',
+                       'having','being','whose','where','which','when','while',
+                       'especially','particularly','typically','usually','often',
+                       'associated','consisting','including','involving','containing',
+                       'related','resulting','causing','producing','providing'}
         # Find the best cut point at or before MAX_CLUE_WORDS
         cut = MAX_CLUE_WORDS
-        while cut > 3 and words[cut - 1].lower().rstrip('.,;:') in stop_words:
+        while cut > 3 and words[cut - 1].lower().rstrip('.,;:') in trailing_words:
             cut -= 1
+        # If we couldn't find a clean cut above 3 words, the definition
+        # is too complex to truncate cleanly — reject it
+        if cut <= 3:
+            return None
         clue = ' '.join(words[:cut])
     # Remove trailing punctuation artifacts
     clue = clue.rstrip(' ;,.:')
+    # Final completeness check: reject clues that still end with a word
+    # suggesting an incomplete phrase (even after best-effort truncation)
+    if was_truncated:
+        final_word = clue.split()[-1].lower().rstrip('.,;:') if clue else ''
+        incomplete_endings = {'a','an','the','of','to','in','for','on','at','by','or','and',
+                              'with','as','from','that','into','not','be','between','about',
+                              'through','under','over','after','before','without','within',
+                              'upon','toward','towards','against','having','being','whose',
+                              'where','which','when','while','especially','particularly',
+                              'typically','usually','often','associated','consisting',
+                              'including','involving','containing','related','resulting',
+                              'causing','producing','providing'}
+        if final_word in incomplete_endings:
+            return None
     return clue
 
 
@@ -343,7 +374,7 @@ def get_best_clue(word: str, wordnet_en) -> Optional[str]:
             continue
 
         cleaned = clean_definition(defn)
-        if not cleaned or len(cleaned) < 3:
+        if cleaned is None or len(cleaned) < 3:
             continue
 
         # Don't use clues that contain the answer word
